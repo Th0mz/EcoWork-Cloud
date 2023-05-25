@@ -20,6 +20,11 @@ import com.sun.net.httpserver.HttpHandler;
 
 public abstract class BaseCompressingHandler implements HttpHandler, RequestHandler<Map<String, String>, String> {
 
+    public static void bruhInstructions(long ninsts) {
+        System.out.println("[WEBSERVER - BaseCompressingHandler] Number of instructions: " + ninsts
+                            + "     for threadId: " + Thread.currentThread().getId());
+    }
+
     abstract byte[] process(BufferedImage bi, String targetFormat, float compressionQuality) throws IOException;
 
     private String handleRequest(String inputEncoded, String format, float compressionFactor) {

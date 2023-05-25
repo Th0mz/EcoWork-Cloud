@@ -9,6 +9,11 @@ public class InsectWars {
 
 	public final static int COLONY_SIZE=5000; // times two for different insects in each army
 
+    public static void bruhInstructions(long ninsts) {
+        System.out.println("[WEBSERVER - InsectWars] Number of instructions: " + ninsts
+                             + "     for threadId: " + Thread.currentThread().getId());
+    }
+
     public static void main(String[] args) {
         if (args.length < 3 ){
             System.out.println("InsectWars  <max-rounds> <num-colonies--army-1> <num-colonies-army-2>");

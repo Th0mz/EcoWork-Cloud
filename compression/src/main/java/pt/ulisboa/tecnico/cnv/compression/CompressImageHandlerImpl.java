@@ -18,6 +18,12 @@ import com.sun.net.httpserver.HttpHandler;
 
 public class CompressImageHandlerImpl extends BaseCompressingHandler implements HttpHandler {
 
+    public static void bruhInstructions(long ninsts) {
+        System.out.println("[WEBSERVER - CompressImageHandlerImpl] Number of instructions: " + ninsts
+                             + "     for threadId: " + Thread.currentThread().getId());
+    }
+    
+
     @Override
     byte[] process(BufferedImage bi, String targetFormat, float compressionQuality) throws IOException {
         try {
