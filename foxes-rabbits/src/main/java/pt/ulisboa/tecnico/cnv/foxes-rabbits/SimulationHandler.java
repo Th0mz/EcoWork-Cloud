@@ -14,6 +14,9 @@ import java.net.URI;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
+import pt.ulisboa.tecnico.cnv.javassist.tools.ServerICount;
+
+
 public class SimulationHandler implements HttpHandler, RequestHandler<Map<String, String>, String> {
 
     @Override
@@ -39,6 +42,8 @@ public class SimulationHandler implements HttpHandler, RequestHandler<Map<String
 
         Ecosystem ecosystem = new Ecosystem(world, n_scenario);
         int generation = ecosystem.runSimulation(n_generations);
+        long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
+        System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
 
         String response = "";
         response += "<p>Simulation finish at generation: " + generation + "</p>";
