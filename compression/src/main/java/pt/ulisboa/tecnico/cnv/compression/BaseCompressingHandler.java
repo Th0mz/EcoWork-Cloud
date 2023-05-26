@@ -19,6 +19,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import pt.ulisboa.tecnico.cnv.javassist.tools.ServerICount;
+import pt.ulisboa.tecnico.cnv.database.MetricsDB;
 
 
 public abstract class BaseCompressingHandler implements HttpHandler, RequestHandler<Map<String, String>, String> {
@@ -34,6 +35,9 @@ public abstract class BaseCompressingHandler implements HttpHandler, RequestHand
             byte[] resultImage = process(bi, format, compressionFactor);
             long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
             System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
+            String argsRequest = format + ":" + Float.toString(compressionFactor);
+            MetricsDB.saveMetric("compression", argsRequest, instructions);
+
             byte[] outputEncoded = Base64.getEncoder().encode(resultImage);
             return new String(outputEncoded);
         } catch (IOException e) {

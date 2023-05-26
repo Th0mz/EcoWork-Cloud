@@ -15,6 +15,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
 import pt.ulisboa.tecnico.cnv.javassist.tools.ServerICount;
+import pt.ulisboa.tecnico.cnv.database.MetricsDB;
 
 public class WarSimulationHandler implements HttpHandler, RequestHandler<Map<String, String>, String> {
 
@@ -43,6 +44,8 @@ public class WarSimulationHandler implements HttpHandler, RequestHandler<Map<Str
         String response = insect_wars.war(max, army1, army2);
         long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
         System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
+        String argsRequest = Integer.toString(max) + ":" + Integer.toString(army1) + ":" + Integer.toString(army2);
+        MetricsDB.saveMetric("war", argsRequest, instructions);
 
         he.sendResponseHeaders(200, response.toString().length());
         OutputStream os = he.getResponseBody();
