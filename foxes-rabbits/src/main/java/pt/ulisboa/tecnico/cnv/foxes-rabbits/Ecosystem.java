@@ -37,10 +37,6 @@ public class Ecosystem {
         populate(world, n_scenario);
     }
 
-    public static void bruhInstructions(long ninsts) {
-        System.out.println("[WEBSERVER - Ecosystem] Number of instructions: " + ninsts
-                             + "     for threadId: " + Thread.currentThread().getId());
-    }
 
     private void insertAnimal(int i, int j, Type type) {
         this.board[i*this.N+j].setType(type);

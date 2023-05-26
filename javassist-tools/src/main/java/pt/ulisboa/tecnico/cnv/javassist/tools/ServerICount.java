@@ -77,34 +77,12 @@ public class ServerICount extends CodeDumper {
             //behavior.insertBefore(String.format("%s.resetVariables(Thread.currentThread().getId());", ServerICount.class.getName()));
         }
 
-        if (behavior.getName().equals("runSimulation")) {
+        if (behavior.getName().equals("runSimulation") || behavior.getName().equals("war") 
+            || behavior.getName().equals("process")) {
             behavior.insertBefore(String.format("%s.resetVariables(Thread.currentThread().getId());", ServerICount.class.getName()));
             behavior.insertAfter(String.format("%s.printStatistics();", ServerICount.class.getName()));
             //behavior.insertAfter(String.format("%s.saveInstructions();", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("bruhInstructions(%s.getInstructions(Thread.currentThread().getId()));",  ServerICount.class.getName()));
         }
-
-        if (behavior.getName().equals("war")) {
-            behavior.insertBefore(String.format("%s.resetVariables(Thread.currentThread().getId());", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("%s.printStatistics();", ServerICount.class.getName()));
-            //behavior.insertAfter(String.format("%s.saveInstructions();", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("bruhInstructions(%s.getInstructions(Thread.currentThread().getId()));",  ServerICount.class.getName()));
-        }
-
-        if (behavior.getName().equals("process")) {
-            behavior.insertBefore(String.format("%s.resetVariables(Thread.currentThread().getId());", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("%s.printStatistics();", ServerICount.class.getName()));
-            //behavior.insertAfter(String.format("%s.saveInstructions();", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("bruhInstructions(%s.getInstructions(Thread.currentThread().getId()));",  ServerICount.class.getName()));
-        }
-
-        
-
-        /* if (behavior.getName().equals("process")) {
-            behavior.insertBefore(String.format("%s.resetVariables(Thread.currentThread().getId());", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("%s.inProcess();", ServerICount.class.getName()));
-            behavior.insertAfter(String.format("%s.printStatistics();", ServerICount.class.getName()));
-        } */
     }
 
     @Override

@@ -18,12 +18,11 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import pt.ulisboa.tecnico.cnv.javassist.tools.ServerICount;
+
+
 public abstract class BaseCompressingHandler implements HttpHandler, RequestHandler<Map<String, String>, String> {
 
-    public static void bruhInstructions(long ninsts) {
-        System.out.println("[WEBSERVER - BaseCompressingHandler] Number of instructions: " + ninsts
-                            + "     for threadId: " + Thread.currentThread().getId());
-    }
 
     abstract byte[] process(BufferedImage bi, String targetFormat, float compressionQuality) throws IOException;
 
@@ -33,6 +32,8 @@ public abstract class BaseCompressingHandler implements HttpHandler, RequestHand
             ByteArrayInputStream bais = new ByteArrayInputStream(decoded);
             BufferedImage bi = ImageIO.read(bais);
             byte[] resultImage = process(bi, format, compressionFactor);
+            long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
+            System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
             byte[] outputEncoded = Base64.getEncoder().encode(resultImage);
             return new String(outputEncoded);
         } catch (IOException e) {
