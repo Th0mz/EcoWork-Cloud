@@ -20,10 +20,11 @@ public class RootHandler implements HttpHandler {
         }
 
         // parse request
-        URI requestedUri = he.getRequestURI();
-        String query = requestedUri.getRawQuery();
-        System.out.println(query);
+        String response = "OK";
+        he.sendResponseHeaders(200, response.length());
+        OutputStream os = he.getResponseBody();
+        os.write(response.getBytes());
 
-        he.sendResponseHeaders(200, 0);
+        os.close();
     }
 }

@@ -1,0 +1,6 @@
+*.idea/*
+*.class
+*/target/*
+instance.*
+*image.id
+scripts/personal_config.sh
