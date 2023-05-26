@@ -27,6 +27,11 @@
       <artifactId>JavassistWrapper</artifactId>
       <version>1.0</version>
 	  </dependency>
+    <dependency>
+      <groupId>pt.ulisboa.tecnico.cnv</groupId>
+      <artifactId>database</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
   </dependencies>
 
   <build>

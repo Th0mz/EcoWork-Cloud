@@ -18,6 +18,7 @@
 		<module>insect-war</module>
 		<module>javassist-tools</module>
 		<module>webserver</module>
+		<module>database</module>
 	</modules>
 
 </project>
