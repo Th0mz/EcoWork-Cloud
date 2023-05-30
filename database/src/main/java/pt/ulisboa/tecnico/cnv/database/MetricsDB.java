@@ -30,6 +30,8 @@ import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.amazonaws.services.dynamodbv2.util.TableUtils;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 
 /**
  * This sample demonstrates how to perform a few simple operations with the
@@ -39,45 +41,54 @@ public class MetricsDB {
 
     private static String AWS_REGION = "us-east-1";
 
-    private static AmazonDynamoDB dynamoDB;
+    private static AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+        .withCredentials(new EnvironmentVariableCredentialsProvider())
+        .withRegion(AWS_REGION)
+        .build();
+
+    private static DynamoDB dynamoDB = new DynamoDB(client);
 
     private static String tableName = "metrics-table";
+
+    private static Map<String, Map<String, Long>> metrics = new HashMap<String, Map<String, Long>>();
 
     public static void main(String[] args) throws Exception {
 
     }
 
     public static void createDB() throws Exception {
-        dynamoDB = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new EnvironmentVariableCredentialsProvider())
-        .withRegion(AWS_REGION)
-        .build();
 
         try {
 
-            // Create a table with a primary hash key named 'name', which holds a string
-            List<KeySchemaElement> key = new ArrayList<KeySchemaElement>();
-            KeySchemaElement keySchemaElementP = new KeySchemaElement()
-                .withAttributeName("typeRequest").withKeyType(KeyType.HASH);
-            KeySchemaElement keySchemaElementS = new KeySchemaElement()
-                .withAttributeName("argsRequest").withKeyType(KeyType.RANGE);
-            key.add(keySchemaElementP);
-            key.add(keySchemaElementS);
+            ArrayList<AttributeDefinition> attrs = new ArrayList<AttributeDefinition>();
+            attrs.add(new AttributeDefinition().withAttributeName("typeRequest")
+                    .withAttributeType("S"));
+            attrs.add(new AttributeDefinition().withAttributeName("argsRequest")
+                    .withAttributeType("S"));
+
+            ArrayList<KeySchemaElement> keySchema = new ArrayList<KeySchemaElement>();
+            keySchema.add(new KeySchemaElement().withAttributeName("typeRequest").withKeyType(KeyType.HASH));
+            keySchema.add(new KeySchemaElement().withAttributeName("argsRequest").withKeyType(KeyType.RANGE));
 
             CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-                .withKeySchema(key)
-                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("typeRequest").withAttributeType(ScalarAttributeType.S))
-                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("argsRequest").withAttributeType(ScalarAttributeType.S))
-                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("nrInstructions").withAttributeType(ScalarAttributeType.N))
-                .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+                .withKeySchema(keySchema)
+                .withProvisionedThroughput(new ProvisionedThroughput()
+                .withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+            
+            createTableRequest.setAttributeDefinitions(attrs);
+
+            /* Table table = dynamoDB.createTable(createTableRequest);
+            table.waitForActive(); */
             // Create table if it does not exist yet
-            TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
+            TableUtils.createTableIfNotExists(client, createTableRequest);
             // wait for the table to move into ACTIVE state
-            TableUtils.waitUntilActive(dynamoDB, tableName);
+            TableUtils.waitUntilActive(client, tableName);
+
+
 
             // Describe our new table
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
-            TableDescription tableDescription = dynamoDB.describeTable(describeTableRequest).getTable();
+            TableDescription tableDescription = client.describeTable(describeTableRequest).getTable();
             System.out.println("Table Description: " + tableDescription);
 
         } catch (AmazonServiceException ase) {
@@ -96,29 +107,50 @@ public class MetricsDB {
         }
     }
 
-    public static synchronized void saveMetric(String typeRequest, String argsRequest, long metrics) {
-        System.out.println(String.format("TYPE OF REQUEST-%s | ARGS %s | NRINSTR-%d", typeRequest, argsRequest, metrics));
+    public static synchronized void saveMetric(String typeRequest, String argsRequest, long value) {
+        if(!typeRequest.equals("war") && !typeRequest.equals("foxrabbit") 
+            && !typeRequest.equals("compression"))
+            return;
+        if(!metrics.containsKey(typeRequest)) {
+            metrics.put(typeRequest, new HashMap<String, Long>());
+        }
+        metrics.get(typeRequest).put(argsRequest, value);
+        System.out.println(String.format("TYPE OF REQUEST-%s | ARGS %s | NRINSTR-%d", typeRequest, argsRequest, value));
     }
 
-    private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, int value) {
+    private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, Long value) {
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("typeRequest", new AttributeValue(typeRequest));
         itemValues.put("argsRequest", new AttributeValue(argsRequest));
-        itemValues.put("value", new AttributeValue().withN(Integer.toString(value)));
+        itemValues.put("value", new AttributeValue().withN(Long.toString(value)));
         return itemValues;
     }
 
-    public static void insertNewItem() {
+    public static void insertNewItem(String typeRequest, String argsRequest, Long value) {
         // Add an item
-        dynamoDB.putItem(new PutItemRequest(tableName, newItem("war", "1000:10:10", 1000)));
+        client.putItem(new PutItemRequest(tableName, newItem(typeRequest, argsRequest, value)));
     }
 
-    public static ScanResult getAllItems() {
+    public synchronized static void uploadAllMetrics() {
+        for (Map.Entry<String, Map<String, Long>> map : metrics.entrySet()) { //Iterate over all types of requests
+            for (Map.Entry<String, Long> entry : map.getValue().entrySet()) { //Iterate over all arguments per type of request
+                insertNewItem(map.getKey(), entry.getKey(), entry.getValue());
+                System.out.println(String.format("TYPE-%s | ARGS-%s | NRINSTR-%d", 
+                                    map.getKey(), entry.getKey(), entry.getValue()));
+                System.out.println(map.getValue());
+                System.out.println(entry.getKey());
+            }
+        }
+        metrics.put("war", new HashMap<String, Long>());
+        metrics.put("foxrabbit", new HashMap<String, Long>());
+        metrics.put("compression", new HashMap<String, Long>());
+    }
+
+    public static void getAllItems() {
         HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
         ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
-        ScanResult scanResult = dynamoDB.scan(scanRequest);
+        ScanResult scanResult = client.scan(scanRequest);
         System.out.println("Result: " + scanResult);
-        return scanResult;
     }
 
     
