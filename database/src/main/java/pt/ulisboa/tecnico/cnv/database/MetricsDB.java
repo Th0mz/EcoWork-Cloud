@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 
-/* import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.AWSCredentials;
@@ -29,7 +29,7 @@ import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
-import com.amazonaws.services.dynamodbv2.util.TableUtils; */
+import com.amazonaws.services.dynamodbv2.util.TableUtils;
 
 /**
  * This sample demonstrates how to perform a few simple operations with the
@@ -37,25 +37,29 @@ import com.amazonaws.services.dynamodbv2.util.TableUtils; */
  */
 public class MetricsDB {
 
-    // TODO - fill fields with correct values.
     private static String AWS_REGION = "us-east-1";
 
-    /* private static AmazonDynamoDB dynamoDB;
+    private static AmazonDynamoDB dynamoDB;
+
+    private static String tableName = "metrics-table";
 
     public static void main(String[] args) throws Exception {
+
+    }
+
+    public static void createDB() throws Exception {
         dynamoDB = AmazonDynamoDBClientBuilder.standard()
-            .withCredentials(new EnvironmentVariableCredentialsProvider())
-            .withRegion(AWS_REGION)
-            .build();
+        .withCredentials(new EnvironmentVariableCredentialsProvider())
+        .withRegion(AWS_REGION)
+        .build();
 
         try {
-            String tableName = "metrics-table";
 
             // Create a table with a primary hash key named 'name', which holds a string
             List<KeySchemaElement> key = new ArrayList<KeySchemaElement>();
-            KeySchemaElement keySchemaElementP = KeySchemaElement()
+            KeySchemaElement keySchemaElementP = new KeySchemaElement()
                 .withAttributeName("typeRequest").withKeyType(KeyType.HASH);
-            KeySchemaElement keySchemaElementS = KeySchemaElement()
+            KeySchemaElement keySchemaElementS = new KeySchemaElement()
                 .withAttributeName("argsRequest").withKeyType(KeyType.RANGE);
             key.add(keySchemaElementP);
             key.add(keySchemaElementS);
@@ -76,14 +80,6 @@ public class MetricsDB {
             TableDescription tableDescription = dynamoDB.describeTable(describeTableRequest).getTable();
             System.out.println("Table Description: " + tableDescription);
 
-            // Add an item
-            //dynamoDB.putItem(new PutItemRequest(tableName, newItem("Bill & Ted's Excellent Adventure", 1989, "****", "James", "Sara")));
-
-            // Add another item
-            //dynamoDB.putItem(new PutItemRequest(tableName, newItem("Airplane", 1980, "*****", "James", "Billy Bob")));
-
-            // Scan items for movies with a year attribute greater than 1985
-
         } catch (AmazonServiceException ase) {
             System.out.println("Caught an AmazonServiceException, which means your request made it "
                     + "to AWS, but was rejected with an error response for some reason.");
@@ -98,13 +94,13 @@ public class MetricsDB {
                     + "such as not being able to access the network.");
             System.out.println("Error Message: " + ace.getMessage());
         }
-    } */
+    }
 
     public static synchronized void saveMetric(String typeRequest, String argsRequest, long metrics) {
         System.out.println(String.format("TYPE OF REQUEST-%s | ARGS %s | NRINSTR-%d", typeRequest, argsRequest, metrics));
     }
 
-    /* private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, int value) {
+    private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, int value) {
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("typeRequest", new AttributeValue(typeRequest));
         itemValues.put("argsRequest", new AttributeValue(argsRequest));
@@ -112,32 +108,18 @@ public class MetricsDB {
         return itemValues;
     }
 
-    private static PutItemResponse insertNewItem(String tableName, HashMap<String,AttributeValue> itemValues) {
-        PutItemRequest request = PutItemRequest.builder()
-        .tableName(tableName)
-        .item(itemValues)
-        .build();
+    public static void insertNewItem() {
+        // Add an item
+        dynamoDB.putItem(new PutItemRequest(tableName, newItem("war", "1000:10:10", 1000)));
+    }
 
-        try {
-            PutItemResponse response = dynamoDB.putItem(request);
-            System.out.println(tableName +" was successfully updated. The request id is "+response.responseMetadata().requestId());
-
-        } catch (ResourceNotFoundException e) {
-            System.err.format("Error: The Amazon DynamoDB table \"%s\" can't be found.\n", tableName);
-            System.err.println("Be sure that it exists and that you've typed its name correctly!");
-            System.exit(1);
-        } catch (DynamoDbException e) {
-            System.err.println(e.getMessage());
-            System.exit(1);
-        } 
-    } 
-
-    private static ScanResult getAllItems() {
+    public static ScanResult getAllItems() {
         HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
         ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
         ScanResult scanResult = dynamoDB.scan(scanRequest);
+        System.out.println("Result: " + scanResult);
         return scanResult;
-    } */
+    }
 
     
     
