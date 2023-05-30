@@ -4,3 +4,4 @@
 instance.*
 *image.id
 scripts/personal_config.sh
+scripts/config.sh
