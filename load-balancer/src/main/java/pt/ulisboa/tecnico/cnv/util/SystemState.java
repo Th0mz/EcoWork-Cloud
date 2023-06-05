@@ -31,20 +31,18 @@ public class SystemState {
 
     public SystemState() {
 
+        // Check if the environment variables were set
+        if (AWS_REGION == null || SECURITY_GROUP_NAME == null || KEY_NAME == null) {
+            System.out.println("Error : Environment variables not set");
+            System.exit(0);
+        }
+        
         System.out.println("creating ec2 client");
         this.ec2Client = AmazonEC2ClientBuilder.standard()
                 .withRegion(AWS_REGION)
                 .withCredentials(new EnvironmentVariableCredentialsProvider())
                 .build();
 
-        /*
-        BasicAWSCredentials awsCredentials = new BasicAWSCredentials("AKIAUD7FME3RJEN6TCLP", "F2AUuI9FcoEnzPsbp6QN/b2dPmBje3GDjGA0EZaL");
-        this.ec2Client = AmazonEC2ClientBuilder.standard()
-                .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
-                .withRegion(AWS_REGION)
-                .build();
-
-         */
 
         System.out.println("getting security id from name");
         this.getSecurityGroupID();
