@@ -8,14 +8,22 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemState {
 
+    // Instance information
+    public static int AVG_STARTUP = 25;
+    public static int CHECK_SLEEP = 5;
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
     public static String SECURITY_GROUP_NAME = System.getenv("AWS_SECURITY_GROUP");
     public String SECURITY_GROUP = null;
     public static String KEY_NAME = System.getenv("AWS_KEYPAIR_NAME");
+
+    public static String PROTOCOL = "http://";
+    public static String PORT = ":8000";
+    private Timer timer = new Timer();
 
 
     // TODO : read from image.id file
@@ -24,8 +32,8 @@ public class SystemState {
     private AmazonEC2 ec2Client;
 
     // Instances :
-    private ArrayList<String> pendingInstances = new ArrayList<>();
-    private HashMap<String, String> runningInstances = new HashMap<>();
+    protected ConcurrentHashMap<String, WaitForRunningTask> pendingInstances = new ConcurrentHashMap();
+    protected ConcurrentHashMap<String, InstanceState> runningInstances = new ConcurrentHashMap<>();
 
     private Random generator = new Random();
 
@@ -52,31 +60,13 @@ public class SystemState {
         this.launchInstance();
         this.launchInstance();
         this.launchInstance();
-
-        System.out.println("Waiting for instances to start");
-        try {
-            Thread.sleep(30000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        updatePendingInstances();
-        System.out.println(pendingInstances);
-        System.out.println(runningInstances);
-
-        ArrayList<String> instancesIDs = new ArrayList<>(this.runningInstances.keySet());
-        int index = generator.nextInt(instancesIDs.size());
-        String instanceID = instancesIDs.get(index);
-
-        System.out.println("terminating instance " + instanceID);
-        this.terminateInstance(instanceID);
     }
 
     public String getInstance() {
-        ArrayList<String> instances = new ArrayList<>(this.runningInstances.values());
+        ArrayList<InstanceState> instances = new ArrayList<>(this.runningInstances.values());
         int index = generator.nextInt(instances.size());
 
-        return instances.get(index);
+        return instances.get(index).getUrl();
     }
 
     public void getSecurityGroupID() {
@@ -106,33 +96,12 @@ public class SystemState {
         Instance createdInstance = runInstancesResult.getReservation().getInstances().get(0);
         String instanceId = createdInstance.getInstanceId();
 
-        this.pendingInstances.add(instanceId);
+        // set up a timer to check when do the instance becomes available to use
+        WaitForRunningTask task = new WaitForRunningTask(instanceId);
+        timer.schedule(task, AVG_STARTUP * 1000);
+        pendingInstances.put(instanceId, task);
 
-    }
-
-    public void updatePendingInstances() {
-        DescribeInstancesRequest describeRequest = new DescribeInstancesRequest()
-                .withInstanceIds(this.pendingInstances);
-
-        DescribeInstancesResult describeResult = ec2Client.describeInstances(describeRequest);
-        List<Reservation> reservations = describeResult.getReservations();
-
-        for (Reservation reservation : reservations) {
-            List<Instance> instances = reservation.getInstances();
-            if (instances.size() > 1) {
-                System.out.println("Error : reservation with more that one instance on it");
-            }
-
-            Instance instance = instances.get(0);
-            String iid = instance.getInstanceId();
-            String ipAddress = instance.getPublicIpAddress();
-
-            if (instance.getState().getCode() == 16) {
-                String url = "http://" + ipAddress + ":8000";
-                this.runningInstances.put(iid, url);
-                this.pendingInstances.remove(iid);
-            }
-        }
+        System.out.println("Launched instance " + instanceId);
     }
 
     public void terminateInstance(String instanceID) {
@@ -154,5 +123,43 @@ public class SystemState {
             System.out.println("Error terminating instance: " + terminateInstancesResult.getTerminatingInstances().get(0).getPreviousState().getName());
         }
         */
+    }
+
+    private class WaitForRunningTask extends TimerTask {
+        private String instanceID;
+
+        public WaitForRunningTask(String instanceID) {
+            this.instanceID = instanceID;
+        }
+
+        @Override
+        public void run() {
+            DescribeInstancesRequest describeRequest = new DescribeInstancesRequest()
+                    .withInstanceIds(this.instanceID);
+
+            DescribeInstancesResult describeResult = ec2Client.describeInstances(describeRequest);
+            Instance instance = describeResult.getReservations().get(0).getInstances().get(0);
+
+            String iid = instance.getInstanceId();
+            if (!this.instanceID.equals(iid)) {
+                System.out.println("Error : while checking " + instanceID + " state, came across " + iid + " state");
+            }
+
+            String ipAddress = instance.getPublicIpAddress();
+            if (instance.getState().getCode() == 16) {
+                // Instance is running
+                String url = PROTOCOL + ipAddress + PORT;
+                runningInstances.put(iid, new InstanceState(url));
+                pendingInstances.remove(instanceID);
+
+                System.out.println("Instance " + this.instanceID + " is running");
+            } else {
+                // Instance isn't yet running
+                WaitForRunningTask task = new WaitForRunningTask(this.instanceID);
+                timer.schedule(task, CHECK_SLEEP * 1000);
+                pendingInstances.put(instanceID, task);
+                this.cancel();
+            }
+        }
     }
 }
