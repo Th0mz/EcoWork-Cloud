@@ -1,7 +1,5 @@
 package pt.ulisboa.tecnico.cnv.util;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
@@ -14,7 +12,9 @@ public class SystemState {
 
     // Instance information
     public static int AVG_STARTUP = 25;
-    public static int CHECK_SLEEP = 5;
+    public static int CHECK_PENDING = 5;
+    public static int CHECK_RUNNING = 5;
+
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
     public static String SECURITY_GROUP_NAME = System.getenv("AWS_SECURITY_GROUP");
@@ -23,6 +23,8 @@ public class SystemState {
 
     public static String PROTOCOL = "http://";
     public static String PORT = ":8000";
+
+    private RunningCheckTask runningCheckTask;
     private Timer timer = new Timer();
 
 
@@ -60,6 +62,9 @@ public class SystemState {
         this.launchInstance();
         this.launchInstance();
         this.launchInstance();
+
+        runningCheckTask = new RunningCheckTask();
+        timer.scheduleAtFixedRate(runningCheckTask, CHECK_RUNNING * 1000, CHECK_RUNNING * 1000);
     }
 
     public String getInstance() {
@@ -114,15 +119,38 @@ public class SystemState {
                 .withInstanceIds(instanceID);
 
         TerminateInstancesResult terminateInstancesResult = ec2Client.terminateInstances(terminateInstancesRequest);
+    }
 
-        /*
-        // Error checking
-        if (terminateInstancesResult.getTerminatingInstances().isEmpty()) {
-            System.out.println("Instance termination initiated successfully.");
-        } else {
-            System.out.println("Error terminating instance: " + terminateInstancesResult.getTerminatingInstances().get(0).getPreviousState().getName());
+    
+
+    public void checkRunningInstances () {
+        if (this.runningInstances.size() == 0) {
+            return;
         }
-        */
+
+        // TODO : just do a ping to the /test endpoint
+        System.out.println("Checking if none of the instances failed");
+        DescribeInstancesRequest describeRequest = new DescribeInstancesRequest()
+                .withInstanceIds(this.runningInstances.keySet());
+
+        DescribeInstancesResult describeResult = ec2Client.describeInstances(describeRequest);
+        List<Reservation> reservations = describeResult.getReservations();
+
+        for (Reservation reservation : reservations) {
+            List<Instance> instances = reservation.getInstances();
+            if (instances.size() > 1) {
+                System.out.println("Error : reservation with more that one instance on it");
+            }
+
+            Instance instance = instances.get(0);
+            String iid = instance.getInstanceId();
+            String ipAddress = instance.getPublicIpAddress();
+
+            if (instance.getState().getCode() != 16) {
+                System.out.println("Instance " + iid + " stopped running, its state is now " + instance.getState().getName());
+                runningInstances.remove(iid);
+            }
+        }
     }
 
     private class WaitForRunningTask extends TimerTask {
@@ -156,10 +184,17 @@ public class SystemState {
             } else {
                 // Instance isn't yet running
                 WaitForRunningTask task = new WaitForRunningTask(this.instanceID);
-                timer.schedule(task, CHECK_SLEEP * 1000);
+                timer.schedule(task, CHECK_PENDING * 1000);
                 pendingInstances.put(instanceID, task);
                 this.cancel();
             }
+        }
+    }
+
+    private class RunningCheckTask extends TimerTask {
+        @Override
+        public void run() {
+            checkRunningInstances();
         }
     }
 }
