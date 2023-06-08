@@ -1,11 +1,18 @@
 package pt.ulisboa.tecnico.cnv.util;
 
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
+import com.amazonaws.services.cloudwatch.model.Datapoint;
+import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsRequest;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.cloudwatch.model.Dimension;
 import com.amazonaws.services.ec2.model.*;
 
+import java.awt.*;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemState {
@@ -14,6 +21,7 @@ public class SystemState {
     public static int AVG_STARTUP = 25;
     public static int CHECK_PENDING = 5;
     public static int CHECK_RUNNING = 5;
+    public static int AVG_PERIOD = 5;
 
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
@@ -21,17 +29,17 @@ public class SystemState {
     public String SECURITY_GROUP = null;
     public static String KEY_NAME = System.getenv("AWS_KEYPAIR_NAME");
 
+    // TODO : read from image.id file
+    public static String AMI_ID = "ami-0565b1205b7daec41";
+
     public static String PROTOCOL = "http://";
     public static String PORT = ":8000";
 
     private RunningCheckTask runningCheckTask;
     private Timer timer = new Timer();
 
-
-    // TODO : read from image.id file
-    public static String AMI_ID = "ami-0565b1205b7daec41";
-
     private AmazonEC2 ec2Client;
+    private AmazonCloudWatch cloudWatch;
 
     // Instances :
     protected ConcurrentHashMap<String, WaitForRunningTask> pendingInstances = new ConcurrentHashMap();
@@ -53,6 +61,11 @@ public class SystemState {
                 .withCredentials(new EnvironmentVariableCredentialsProvider())
                 .build();
 
+        this.cloudWatch = AmazonCloudWatchClientBuilder.standard()
+                .withRegion(AWS_REGION)
+                .withCredentials(new EnvironmentVariableCredentialsProvider())
+                .build();
+
 
         System.out.println("getting security id from name");
         this.getSecurityGroupID();
@@ -65,6 +78,10 @@ public class SystemState {
 
         runningCheckTask = new RunningCheckTask();
         timer.scheduleAtFixedRate(runningCheckTask, CHECK_RUNNING * 1000, CHECK_RUNNING * 1000);
+
+        // TODO : remove
+        TestTask task = new TestTask();
+        timer.scheduleAtFixedRate(task, 35 * 1000, 5 * 1000);
     }
 
     public String getInstance() {
@@ -121,7 +138,29 @@ public class SystemState {
         TerminateInstancesResult terminateInstancesResult = ec2Client.terminateInstances(terminateInstancesRequest);
     }
 
-    
+    public void updateCPUMetrics() {
+        System.out.println("Updating CPU metrics");
+        Dimension instanceDimension = new Dimension();
+        instanceDimension.setName("InstanceId");
+
+        for (String instanceID : this.runningInstances.keySet()) {
+            instanceDimension.setValue(instanceID);
+            GetMetricStatisticsRequest request = new GetMetricStatisticsRequest()
+                    .withStartTime(new Date(new Date().getTime() - (AVG_PERIOD * 1000) - 5000))
+                    .withNamespace("AWS/EC2")
+                    .withPeriod(AVG_PERIOD)
+                    .withMetricName("CPUUtilization")
+                    .withStatistics("Average")
+                    .withDimensions(instanceDimension)
+                    .withEndTime(new Date());
+
+
+            for (Datapoint dp : cloudWatch.getMetricStatistics(request).getDatapoints()) {
+                System.out.println(" CPU utilization for instance " + instanceID + " = " + dp.getAverage());
+            }
+        }
+    }
+
 
     public void checkRunningInstances () {
         if (this.runningInstances.size() == 0) {
@@ -195,6 +234,14 @@ public class SystemState {
         @Override
         public void run() {
             checkRunningInstances();
+        }
+    }
+
+    private class TestTask extends TimerTask {
+        // TODO : remove, just used for test purposes
+        @Override
+        public void run() {
+            updateCPUMetrics();
         }
     }
 }
