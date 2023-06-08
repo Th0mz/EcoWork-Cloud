@@ -1,0 +1,8 @@
+setx /m AWS_DEFAULT_REGION "us-east-1"
+setx AWS_DEFAULT_REGION "us-east-1"
+setx AWS_ACCOUNT_ID "<insert here your aws account id>"
+setx AWS_ACCESS_KEY_ID "<insert here your aws access key>"
+setx AWS_SECRET_ACCESS_KEY "<insert here your aws secret access key>"
+setx AWS_EC2_SSH_KEYPAR_PATH "<path to aws ssh keypair>"
+setx AWS_SECURITY_GROUP "<name of your security group>"
+setx AWS_KEYPAIR_NAME "<name of your aws keypair>"
