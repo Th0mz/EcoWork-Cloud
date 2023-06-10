@@ -53,10 +53,33 @@ public class MetricsDB {
 
     private static Map<String, Map<String, Long>> metrics = new HashMap<String, Map<String, Long>>();
 
-    private static List<AbstractMetricObj> objsToSave = new ArrayList<AbstractMetricObj>();
+    private static Map<String, List<AbstractMetricObj>> objsToSave = new HashMap<String, List<AbstractMetricObj>>();
+
+    public MetricsDB() {
+        objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+        objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+        objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
+    }
 
     public static void main(String[] args) throws Exception {
-        //TODO: Use this main for testing of solely the DB
+        MetricsDB.createDB();
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 100000));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 50000));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 30000));
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 150000));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 55000));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 35000));
+
+        updateAllMetrics();
+
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 130000));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 53000));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 33000));
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 114000));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 51400));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 31400));
+
+        updateAllMetrics();
     }
 
     public static void createDB() throws Exception {
@@ -90,6 +113,10 @@ public class MetricsDB {
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
             TableDescription tableDescription = client.describeTable(describeTableRequest).getTable();
             System.out.println("Table Description: " + tableDescription);
+
+            objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+            objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
 
         } catch (AmazonServiceException ase) {
             System.out.println("Caught an AmazonServiceException, which means your request made it "
@@ -146,25 +173,52 @@ public class MetricsDB {
         metrics.put("compression", new HashMap<String, Long>());
     }
 
-    public static void getAllItems() {
+
+
+    public static void saveMetric(AbstractMetricObj obj) {
+        if(obj instanceof FoxRabbitObj)
+            objsToSave.get(FoxRabbitObj.endpoint).add((FoxRabbitObj)obj);
+        else if(obj instanceof InsectWarObj)
+            objsToSave.get(InsectWarObj.endpoint).add((InsectWarObj)obj);
+        else if(obj instanceof CompressObj)
+            objsToSave.get(CompressObj.endpoint).add((CompressObj)obj);
+        else {
+            return;
+        }
+    }
+
+
+    public static ScanResult getItemsForEndpoint(String endpoint) {
         HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+        Condition condition = new Condition()
+                .withComparisonOperator(ComparisonOperator.EQ.toString())
+                .withAttributeValueList(new AttributeValue(endpoint));
+            scanFilter.put("endpoint", condition);
         ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
         ScanResult scanResult = client.scan(scanRequest);
-        System.out.println("Result: " + scanResult);
+        return scanResult;
     }
 
     public static void updateAllMetrics() { 
         // for all AbstractMetricObj: generate new PutItemRequest; client.putItem();
 
+        //TODO: LOCK DB
         //DynamoLock()
         updateFoxesRabbits();
-        //Do for the other two endpoints
+        //TODO: Do for the other two endpoints
+        objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+        objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+        objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
         //DynamoUnlock()
     }
 
     public static void updateFoxesRabbits() {
-        //TODO:
-        //Read previous Fox metric
+        
+        if(!objsToSave.containsKey(FoxRabbitObj.endpoint)) {
+            objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+            return;
+        }
+
         HashMap<Integer, Integer> nr_previous = new HashMap<Integer, Integer>();
         HashMap<Integer, Long> previousMetric = new HashMap<Integer, Long>();
         HashMap<Integer, Long> sumEachWorld = new HashMap<Integer, Long>();
@@ -176,7 +230,18 @@ public class MetricsDB {
             nr_previous.put(n_world, 0);
         }
 
-        for(AbstractMetricObj obj : objsToSave) {
+        ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
+        List<Map<String,AttributeValue>> listItems = sr.getItems();
+
+        for(Map<String,AttributeValue> itemAttributes : listItems) {
+            int wrld = Integer.parseInt(itemAttributes.get("world").getN());
+            int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+            Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
+            nr_previous.put(wrld, previous_runs);
+            previousMetric.put(wrld, previous_metric);
+        }
+
+        for(AbstractMetricObj obj : objsToSave.get(FoxRabbitObj.endpoint)) {
             if (obj instanceof FoxRabbitObj) {
                 FoxRabbitObj fR = (FoxRabbitObj) obj;
                 sumEachWorld.put(fR.getWorld(), sumEachWorld.get(fR.getWorld()) + fR.getWeight());
@@ -185,10 +250,30 @@ public class MetricsDB {
 
         for(int n_world = 1; n_world <= 4; n_world++) {
             Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world-1);
-            Long finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world)
-                             * nr_previous.get(n_world)) / numberMeasures;
+            if (numberMeasures == 0) numberMeasures = 1;
+            Long finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
+            System.out.println("[FOXRABBIT - WORLD "+ n_world + "]NEW STATISTIC "+ finalStat);
             client.putItem(FoxRabbitObj.generateRequest(tableName, numberMeasures, n_world, finalStat));
         }
+    }
+
+
+    public static Map<Integer, Long> getFoxRabbitMetrics() {
+        Map<Integer,Long> metricsPerWorld = new HashMap<Integer, Long>();
+        
+        ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
+        List<Map<String,AttributeValue>> listItems = sr.getItems();
+
+        for(int n_world = 1; n_world <= 4; n_world++) {
+            metricsPerWorld.put(n_world, 0L); 
+        }
+        for(Map<String,AttributeValue> itemAttributes : listItems) {
+            int wrld = Integer.parseInt(itemAttributes.get("world").getN());
+            Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
+            metricsPerWorld.put(wrld, previous_metric);
+        }
+
+        return metricsPerWorld;
     }
     
 

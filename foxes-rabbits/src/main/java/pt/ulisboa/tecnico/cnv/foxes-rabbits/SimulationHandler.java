@@ -15,6 +15,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
 import pt.ulisboa.tecnico.cnv.javassist.tools.ServerICount;
+import pt.ulisboa.tecnico.cnv.database.FoxRabbitObj;
 import pt.ulisboa.tecnico.cnv.database.MetricsDB;
 
 
@@ -45,8 +46,7 @@ public class SimulationHandler implements HttpHandler, RequestHandler<Map<String
         int generation = ecosystem.runSimulation(n_generations);
         long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
         System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
-        String argsRequest = Integer.toString(n_generations) + ":" + Integer.toString(world) + ":" + Integer.toString(n_scenario);
-        MetricsDB.saveMetric("foxrabbit", argsRequest, instructions);
+        MetricsDB.saveMetric(new FoxRabbitObj(n_generations, world, n_scenario, instructions));
 
         String response = "";
         response += "<p>Simulation finish at generation: " + generation + "</p>";
