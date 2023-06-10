@@ -30,6 +30,7 @@ import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.amazonaws.services.dynamodbv2.util.TableUtils;
+import com.amazonaws.services.dynamodbv2.xspec.N;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 
@@ -52,8 +53,10 @@ public class MetricsDB {
 
     private static Map<String, Map<String, Long>> metrics = new HashMap<String, Map<String, Long>>();
 
-    public static void main(String[] args) throws Exception {
+    private static List<AbstractMetricObj> objsToSave = new ArrayList<AbstractMetricObj>();
 
+    public static void main(String[] args) throws Exception {
+        //TODO: Use this main for testing of solely the DB
     }
 
     public static void createDB() throws Exception {
@@ -61,14 +64,11 @@ public class MetricsDB {
         try {
 
             ArrayList<AttributeDefinition> attrs = new ArrayList<AttributeDefinition>();
-            attrs.add(new AttributeDefinition().withAttributeName("typeRequest")
-                    .withAttributeType("S"));
-            attrs.add(new AttributeDefinition().withAttributeName("argsRequest")
+            attrs.add(new AttributeDefinition().withAttributeName("endpoint")
                     .withAttributeType("S"));
 
             ArrayList<KeySchemaElement> keySchema = new ArrayList<KeySchemaElement>();
-            keySchema.add(new KeySchemaElement().withAttributeName("typeRequest").withKeyType(KeyType.HASH));
-            keySchema.add(new KeySchemaElement().withAttributeName("argsRequest").withKeyType(KeyType.RANGE));
+            keySchema.add(new KeySchemaElement().withAttributeName("endpoint").withKeyType(KeyType.HASH));
 
             CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
                 .withKeySchema(keySchema)
@@ -153,7 +153,43 @@ public class MetricsDB {
         System.out.println("Result: " + scanResult);
     }
 
-    
+    public static void updateAllMetrics() { 
+        // for all AbstractMetricObj: generate new PutItemRequest; client.putItem();
+
+        //DynamoLock()
+        updateFoxesRabbits();
+        //Do for the other two endpoints
+        //DynamoUnlock()
+    }
+
+    public static void updateFoxesRabbits() {
+        //TODO:
+        //Read previous Fox metric
+        HashMap<Integer, Integer> nr_previous = new HashMap<Integer, Integer>();
+        HashMap<Integer, Long> previousMetric = new HashMap<Integer, Long>();
+        HashMap<Integer, Long> sumEachWorld = new HashMap<Integer, Long>();
+        List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+        for(int n_world = 1; n_world <= 4; n_world++) {
+            sumEachWorld.put(n_world, 0L);
+            totalMeasuresPerWorld.add(0);
+            previousMetric.put(n_world, 0L);
+            nr_previous.put(n_world, 0);
+        }
+
+        for(AbstractMetricObj obj : objsToSave) {
+            if (obj instanceof FoxRabbitObj) {
+                FoxRabbitObj fR = (FoxRabbitObj) obj;
+                sumEachWorld.put(fR.getWorld(), sumEachWorld.get(fR.getWorld()) + fR.getWeight());
+            }
+        }
+
+        for(int n_world = 1; n_world <= 4; n_world++) {
+            Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world-1);
+            Long finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world)
+                             * nr_previous.get(n_world)) / numberMeasures;
+            client.putItem(FoxRabbitObj.generateRequest(tableName, numberMeasures, n_world, finalStat));
+        }
+    }
     
 
 }
