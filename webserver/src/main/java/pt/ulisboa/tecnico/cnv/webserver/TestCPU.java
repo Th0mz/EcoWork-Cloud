@@ -56,6 +56,7 @@ public class TestCPU extends TimerTask {
             lock.lock();
             avg = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
             lock.unlock();
+            //DEBUG
             //System.out.println(cpuLoad);
             //System.out.println(avg);  
     }
