@@ -25,12 +25,20 @@ public class InsectWarObj extends AbstractMetricObj {
     public int getArmy2(){return army2;}
     public long getInstructions(){return instructions;}
 
-    public static PutItemRequest generateRequest(String tableName, int max, int armydiff, int nr_previous) {
+    public static PutItemRequest generateRequest(String tableName, Integer nr_round1perarmysize, Long round1perarmysize, 
+            Integer nr_roundincreasewhenarmyequal, Long roundincreasewhenarmyequal) {
         //TODO: What is actually the metric
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("endpoint", new AttributeValue("war"));
-        itemValues.put("max", new AttributeValue().withN(Integer.toString(max)));
-        itemValues.put("armydiff", new AttributeValue().withN(Integer.toString(armydiff)));
+        itemValues.put("round1perarmysize", new AttributeValue().withN(Long.toString(round1perarmysize)));
+        itemValues.put("nr_round1perarmysize", new AttributeValue().withN(Integer.toString(nr_round1perarmysize)));
+
+
+        itemValues.put("nr_roundincreasewhenarmyequal", new AttributeValue().withN(Integer.toString(nr_roundincreasewhenarmyequal)));
+        itemValues.put("roundincreasewhenarmyequal", new AttributeValue().withN(Long.toString(roundincreasewhenarmyequal)));
+        
+        //TODO: MAYBE? itemValues.put("instrarmyratio", new AttributeValue().withN(Long.toString(instrarmyratio)));
+        //itemValues.put("nr_previous", new AttributeValue().withN(Long.toString(nr_previous)));
         return new PutItemRequest(tableName, itemValues);
     }
 }

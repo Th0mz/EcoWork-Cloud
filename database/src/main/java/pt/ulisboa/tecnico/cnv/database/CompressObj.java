@@ -10,24 +10,32 @@ public class CompressObj extends AbstractMetricObj {
     public static String endpoint = "compress";
     private String format;
     private String factor;
-    private long instructions;
+    private Integer height;
+    private Integer pixels;
+    private Long instructions;
 
-    public CompressObj(String formatArg, String factorArg, long instr) {
+    public CompressObj(String formatArg, String factorArg, int height_, int pixels_, long instr) {
         format = formatArg;
         factor = factorArg;
+        height = height_;
+        pixels = pixels_;
         instructions = instr;
     }
 
     public String getFormat() {return format;}
     public String getFactor() {return factor;}
-    public long getInstructions() {return instructions;}
+    public Integer getHeight() {return height;}
+    public Integer getPixels() {return pixels;}
+    public Long getInstructions() {return instructions;}
 
-    public static PutItemRequest generateRequest(String tableName, String format, String factor, int nr_previous) {
+    public static PutItemRequest generateRequest(String tableName, String format, double slope, double origin, int nr_previous) {
         //TODO: What is actually the metric
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("endpoint", new AttributeValue("compress"));
         itemValues.put("format", new AttributeValue(format));
-        itemValues.put("factor", new AttributeValue(factor));
+        itemValues.put("slope", new AttributeValue().withN(Double.toString(slope)));
+        itemValues.put("origin", new AttributeValue().withN(Double.toString(origin)));
+        itemValues.put("nr_previous", new AttributeValue().withN(Integer.toString(nr_previous)));
         return new PutItemRequest(tableName, itemValues);
     }
 }
