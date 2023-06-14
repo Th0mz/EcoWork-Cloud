@@ -28,6 +28,7 @@ public class WebServer {
         
         server.start();
 
+        /*
         class UploadMetricsTask extends TimerTask {
             @Override
             public void run() {
@@ -38,5 +39,7 @@ public class WebServer {
         }
 
         new Timer().scheduleAtFixedRate(new UploadMetricsTask(), 0, 20000);
+        */
+
     }
 }
