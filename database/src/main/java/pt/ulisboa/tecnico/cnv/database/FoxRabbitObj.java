@@ -25,13 +25,13 @@ public class FoxRabbitObj extends AbstractMetricObj {
     public int getScenario(){return scenario;}
     public long getInstructions(){return instructions;}
 
-    public static PutItemRequest generateRequest(String tableName, int nr_previous, int world, Long stat) {
+    public static PutItemRequest generateRequest(String tableName, int nr_previous, int world, Double stat) {
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("endpoint", new AttributeValue(endpoint+String.valueOf(world)));
         itemValues.put("world", new AttributeValue().withN(Integer.toString(world)));
         //TODO: itemValues.put("average", new AttributeValue().withN(Integer.toString(scenario)));
         itemValues.put("nr_previous", new AttributeValue().withN(Integer.toString(nr_previous)));
-        itemValues.put("statistic", new AttributeValue().withN(Long.toString(stat)));
+        itemValues.put("statistic", new AttributeValue().withN(Double.toString(stat)));
         return new PutItemRequest(tableName, itemValues);
     }
 
