@@ -21,6 +21,10 @@ public class InstanceState {
         this.cpuAvg = newAvg;
     }
 
+    public double getCPUAvg() {
+        return this.cpuAvg;
+    }
+
     public long getExecutingInstructions() {
         synchronized (this) {
             return executingInstructions;

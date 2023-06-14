@@ -152,6 +152,11 @@ public class SystemState {
         TerminateInstancesResult terminateInstancesResult = ec2Client.terminateInstances(terminateInstancesRequest);
     }
 
+    protected ArrayList<InstanceState> getRunningInstances() {
+        //Does this need locks?
+        return new ArrayList<>(this.runningInstances.values());
+    }
+
     public void updateCPUMetrics() {
 
         System.out.println("Updating CPU metrics");
