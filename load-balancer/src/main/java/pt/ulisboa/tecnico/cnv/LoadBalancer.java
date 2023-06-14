@@ -9,6 +9,8 @@ public class LoadBalancer {
 
     public static void main(String[] args) throws Exception {
         SystemState state = new SystemState();
+        AutoScaler autoScaler = new AutoScaler(state);
+        autoScaler.start();
 
         System.out.println("Running load balancer on port " + port + "...");
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);

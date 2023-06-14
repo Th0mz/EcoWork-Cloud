@@ -52,7 +52,7 @@ public class MetricsDB {
 
     private static String tableName = "metrics-table";
 
-    private static Map<String, Map<String, Long>> metrics = new HashMap<String, Map<String, Long>>();
+    private static Map<String, Map<String, Double>> metrics = new HashMap<String, Map<String, Double>>();
 
     private static Map<String, List<AbstractMetricObj>> objsToSave = new HashMap<String, List<AbstractMetricObj>>();
 
@@ -63,6 +63,7 @@ public class MetricsDB {
     //first index for army size, second index for round number
     private static Map<Integer,  Map<Integer, InsectWarObj>> samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
     private static List<InsectWarObj> roundOneEqualArmy = new ArrayList<InsectWarObj>();
+    private static Double roundOneArmyOneInstr = 1000.0;
     
 
     public MetricsDB() {
@@ -79,13 +80,22 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
         //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
         //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
-        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 2, 4, 14));
-        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 3, 5, 16));
-        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 4, 6, 18));
-        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 5, 7, 20));
-        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 6, 8, 19));
+        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 2, 4, 14));
+        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 3, 5, 16));
+        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 4, 6, 18));
+        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 5, 7, 20));
+        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 6, 8, 22));
+        //MetricsDB.saveMetric(new InsectWarObj(1, 5, 5, 10000));
+        //MetricsDB.saveMetric(new InsectWarObj(2, 5, 5, 1510000));
 
-        updateAllMetrics();
+        //MetricsDB.saveMetric(new InsectWarObj(1, 3, 3, 6000));
+        //MetricsDB.saveMetric(new InsectWarObj(2, 3, 3, 306000));
+
+        //MetricsDB.saveMetric(new InsectWarObj(1, 2, 2, 4000));
+        //MetricsDB.saveMetric(new InsectWarObj(4, 2, 2, 1804000));
+
+
+        //updateAllMetrics();
 
 
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 5000));
@@ -150,33 +160,33 @@ public class MetricsDB {
         }
     }
 
-    public static synchronized void saveMetric(String typeRequest, String argsRequest, long value) {
+    public static synchronized void saveMetric(String typeRequest, String argsRequest, Double value) {
         if(!typeRequest.equals("war") && !typeRequest.equals("foxrabbit") 
             && !typeRequest.equals("compression"))
             return;
         if(!metrics.containsKey(typeRequest)) {
-            metrics.put(typeRequest, new HashMap<String, Long>());
+            metrics.put(typeRequest, new HashMap<String, Double>());
         }
         metrics.get(typeRequest).put(argsRequest, value);
         System.out.println(String.format("TYPE OF REQUEST-%s | ARGS %s | NRINSTR-%d", typeRequest, argsRequest, value));
     }
 
-    private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, Long value) {
+    private static Map<String, AttributeValue> newItem(String typeRequest, String argsRequest, Double value) {
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
         itemValues.put("typeRequest", new AttributeValue(typeRequest));
         itemValues.put("argsRequest", new AttributeValue(argsRequest));
-        itemValues.put("value", new AttributeValue().withN(Long.toString(value)));
+        itemValues.put("value", new AttributeValue().withN(Double.toString(value)));
         return itemValues;
     }
 
-    public static void insertNewItem(String typeRequest, String argsRequest, Long value) {
+    public static void insertNewItem(String typeRequest, String argsRequest, Double value) {
         // Add an item
         client.putItem(new PutItemRequest(tableName, newItem(typeRequest, argsRequest, value)));
     }
 
     public synchronized static void uploadAllMetrics() {
-        for (Map.Entry<String, Map<String, Long>> map : metrics.entrySet()) { //Iterate over all types of requests
-            for (Map.Entry<String, Long> entry : map.getValue().entrySet()) { //Iterate over all arguments per type of request
+        for (Map.Entry<String, Map<String, Double>> map : metrics.entrySet()) { //Iterate over all types of requests
+            for (Map.Entry<String, Double> entry : map.getValue().entrySet()) { //Iterate over all arguments per type of request
                 insertNewItem(map.getKey(), entry.getKey(), entry.getValue());
                 System.out.println(String.format("TYPE-%s | ARGS-%s | NRINSTR-%d", 
                                     map.getKey(), entry.getKey(), entry.getValue()));
@@ -184,9 +194,9 @@ public class MetricsDB {
                 System.out.println(entry.getKey());
             }
         }
-        metrics.put("war", new HashMap<String, Long>());
-        metrics.put("foxrabbit", new HashMap<String, Long>());
-        metrics.put("compression", new HashMap<String, Long>());
+        metrics.put("war", new HashMap<String, Double>());
+        metrics.put("foxrabbit", new HashMap<String, Double>());
+        metrics.put("compression", new HashMap<String, Double>());
     }
 
 
@@ -267,7 +277,7 @@ public class MetricsDB {
             return;
         }
 
-        Long round1perarmysize = 1L, roundincreasewhenarmyequal = 300000L;
+        Double round1perarmysize = 1.0, roundincreasewhenarmyequal = 300000.0;
         Integer nr_round1perarmysize = 1, nr_roundincreasewhenarmyequal = 1;
 
 
@@ -275,10 +285,10 @@ public class MetricsDB {
         List<Map<String,AttributeValue>> listItems = sr.getItems();
 
         for(Map<String,AttributeValue> itemAttributes : listItems) {
-            round1perarmysize = Long.parseLong(itemAttributes.get("round1perarmysize").getN());
+            round1perarmysize = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
             nr_round1perarmysize = Integer.parseInt(itemAttributes.get("nr_round1perarmysize").getN());
 
-            roundincreasewhenarmyequal = Long.parseLong(itemAttributes.get("roundincreasewhenarmyequal").getN());
+            roundincreasewhenarmyequal = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
             nr_roundincreasewhenarmyequal = Integer.parseInt(itemAttributes.get("nr_roundincreasewhenarmyequal").getN());
         }
 
@@ -286,69 +296,88 @@ public class MetricsDB {
         //Calculus of per round variation as a function of army size,
         // when armies are equal
         int nr_measures = 0;
-        Long estimatePerRound = 0L;
+        Double estimatePerRound = 0.0;
+        List<InsectWarObj> roundOneBaselines = new ArrayList<InsectWarObj>();
         for (Integer armySize : samearmysize.keySet()) {
             if (samearmysize.get(armySize).size() > 1) {
-                for (InsectWarObj obj1 : samearmysize.get(listItems).values()) {
-                    for (InsectWarObj obj2 : samearmysize.get(listItems).values()) {
+                for (InsectWarObj obj1 : samearmysize.get(armySize).values()) {
+                    if (obj1.getMax() != 1) continue;
+                    roundOneBaselines.add(obj1);
+                    for (InsectWarObj obj2 : samearmysize.get(armySize).values()) {
                         if (obj1.getMax() == obj2.getMax()) continue;
                         nr_measures++;
-                        int roundDif = Math.abs(obj2.getMax() - obj1.getMax());
-                        long instrDif = Math.abs(obj2.getInstructions() - obj1.getInstructions());
-                        long functionOfRound = instrDif / (armySize*roundDif);
+                        int roundDif = obj2.getMax() - obj1.getMax();
+                        Long instrDif = obj2.getInstructions() - obj1.getInstructions();
+                        Double functionOfRound = instrDif*1.0 / (armySize*roundDif*1.0);
                         estimatePerRound += functionOfRound;
                     }
                 }
             }
         }
-        if (nr_measures == 0) nr_measures = 1;
-        estimatePerRound /= nr_measures; 
+        //first index for army size, second index for round number 
+        samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
+        for(InsectWarObj obj : roundOneBaselines) {
+            if(!samearmysize.containsKey(obj.getArmy1()))
+                samearmysize.put(obj.getArmy1(), new HashMap<Integer, InsectWarObj>());
+            samearmysize.get(obj.getArmy1()).put(obj.getMax(), obj);
+        }
 
 
         //Calculus of per army size variation as a function of round,
         // when armies are equal and round is one
         int nr_measures_roundone = 0;
-        Long estimatePerArmy = 0L;
+        Double estimatePerArmy = 0.0;
         for (InsectWarObj obj1 : roundOneEqualArmy) {
-            for (InsectWarObj obj2 : roundOneEqualArmy) {
-                if (obj1.getArmy1() == obj2.getArmy1()) continue;
-                nr_measures_roundone++;
-                int armyDif = Math.abs(obj2.getArmy1() - obj1.getArmy1());
-                long instrDif = Math.abs(obj2.getInstructions() - obj1.getInstructions());
-                long functionOfArmy = instrDif / armyDif;
-                estimatePerArmy += functionOfArmy;
-            }
+            System.out.println("----------->>>>>-----------");
+            System.out.println("OBJ1 Army: " + obj1.getArmy1());
+
+            Double armyRatio =  obj1.getArmy1()*1.0/1.0; //army1 is the baseline for comparison
+            Double instrRatio = obj1.getInstructions()*1.0/roundOneArmyOneInstr;
+            Double functionOfArmy = instrRatio/armyRatio;
+            estimatePerArmy += functionOfArmy;
+            nr_measures_roundone++;
+            System.out.println("Army ratio: " + armyRatio);
+            System.out.println("Instr ratio: " + instrRatio);
+            System.out.println("FunctionOfArmy: " + functionOfArmy);
+            System.out.println("EstimatePerArmy: " + estimatePerArmy);
+
+            System.out.println("-----------<<<<<-----------");
         }
-        if (nr_measures_roundone == 0) nr_measures_roundone = 1;
-        estimatePerArmy /= nr_measures_roundone; 
 
         Integer nr_finalPerRound, nr_finalPerArmy;
-        Long finalPerRound, finalPerArmy;
+        Double finalPerRound, finalPerArmy;
 
         if (estimatePerRound == 0) {
             finalPerRound = roundincreasewhenarmyequal;
             nr_finalPerRound = nr_roundincreasewhenarmyequal;
+            System.out.println(String.format("[INSECTWAR - DB] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
+
         } else {
             nr_finalPerRound = nr_measures + nr_roundincreasewhenarmyequal;
-            finalPerRound = (estimatePerRound * nr_measures + 
-                    roundincreasewhenarmyequal * nr_roundincreasewhenarmyequal) / nr_finalPerRound;
+            finalPerRound = (estimatePerRound + roundincreasewhenarmyequal * nr_roundincreasewhenarmyequal) / nr_finalPerRound;
+            System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
+
         }
 
         if (estimatePerArmy == 0) {
             finalPerArmy = round1perarmysize;
             nr_finalPerArmy = nr_round1perarmysize;
+            System.out.println(String.format("[INSECTWAR - DB] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
+
         } else {
             nr_finalPerArmy = nr_measures_roundone + nr_round1perarmysize;
-            finalPerArmy = (estimatePerArmy * nr_measures_roundone + 
-                    round1perarmysize * nr_round1perarmysize) / nr_finalPerArmy;
-            
+            finalPerArmy = (estimatePerArmy + round1perarmysize * nr_round1perarmysize) / nr_finalPerArmy;
+            System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
+            System.out.println(String.format("[INSECTWAR - DB&LOCAL *] estimatePerArmy-%f round1perarmysize-%f", estimatePerArmy, round1perarmysize));
+            System.out.println(String.format("[INSECTWAR - DB&LOCAL **] nr_round1perarmysize-%d nr_measures_roundone-%d", nr_round1perarmysize, nr_measures_roundone));
         }
     
-        System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%d PERARMY-%d", finalPerRound, finalPerArmy));
+        System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
         client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
                 nr_finalPerRound, finalPerRound));
 
         objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+        roundOneEqualArmy.clear();
     }
 
 
@@ -559,13 +588,13 @@ public class MetricsDB {
         }
 
         HashMap<Integer, Integer> nr_previous = new HashMap<Integer, Integer>();
-        HashMap<Integer, Long> previousMetric = new HashMap<Integer, Long>();
-        HashMap<Integer, Long> sumEachWorld = new HashMap<Integer, Long>();
+        HashMap<Integer, Double> previousMetric = new HashMap<Integer, Double>();
+        HashMap<Integer, Double> sumEachWorld = new HashMap<Integer, Double>();
         HashMap<Integer, Integer> totalMeasuresPerWorld = new HashMap<Integer, Integer>();
         for(int n_world = 1; n_world <= 4; n_world++) {
-            sumEachWorld.put(n_world, 0L);
+            sumEachWorld.put(n_world, 0.0);
             totalMeasuresPerWorld.put(n_world, 0);
-            previousMetric.put(n_world, 0L);
+            previousMetric.put(n_world, 0.0);
             nr_previous.put(n_world, 0);
         }
 
@@ -576,7 +605,7 @@ public class MetricsDB {
             for(Map<String,AttributeValue> itemAttributes : listItems) {
                 int wrld = Integer.parseInt(itemAttributes.get("world").getN());
                 int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
+                Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
                 nr_previous.put(wrld, previous_runs);
                 previousMetric.put(wrld, previous_metric);
             }
@@ -600,7 +629,7 @@ public class MetricsDB {
 
             int actualMeasures = numberMeasures;
             if (numberMeasures == 0) numberMeasures = 1;
-            Long finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
+            Double finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
             //System.out.println(String.format("sumEachWorld = %d", sumEachWorld.get(n_world)));
             //System.out.println(String.format("previousMetric = %d", previousMetric.get(n_world)));
             //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
@@ -618,18 +647,18 @@ public class MetricsDB {
  // ==========================                 ==========================
  // =====================================================================
 
-    public static Map<Integer, Long> getFoxRabbitMetrics() {
-        Map<Integer,Long> metricsPerWorld = new HashMap<Integer, Long>();
+    public static Map<Integer, Double> getFoxRabbitMetrics() {
+        Map<Integer,Double> metricsPerWorld = new HashMap<Integer, Double>();
         
         ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
 
         for(int n_world = 1; n_world <= 4; n_world++) {
-            metricsPerWorld.put(n_world, 0L); 
+            metricsPerWorld.put(n_world, 0.0); 
         }
         for(Map<String,AttributeValue> itemAttributes : listItems) {
             int wrld = Integer.parseInt(itemAttributes.get("world").getN());
-            Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
+            Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
             metricsPerWorld.put(wrld, previous_metric);
         }
 
@@ -638,20 +667,20 @@ public class MetricsDB {
     
 
 
-    public static Map<String, List<Long>> getCompressMetrics() {
-        Map<String,List<Long>> metricsPerFormat = new HashMap<String, List<Long>>();
+    public static Map<String, List<Double>> getCompressMetrics() {
+        Map<String,List<Double>> metricsPerFormat = new HashMap<String, List<Double>>();
         
         ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
             
-        metricsPerFormat.put("bmp", new ArrayList<Long>(List.of(0L,0L)));
-        metricsPerFormat.put("jpg", new ArrayList<Long>(List.of(0L,0L))); 
-        metricsPerFormat.put("png", new ArrayList<Long>(List.of(0L,0L))); 
+        metricsPerFormat.put("bmp", new ArrayList<Double>(List.of(0.0,0.0)));
+        metricsPerFormat.put("jpg", new ArrayList<Double>(List.of(0.0,0.0))); 
+        metricsPerFormat.put("png", new ArrayList<Double>(List.of(0.0,0.0))); 
 
         for(Map<String,AttributeValue> itemAttributes : listItems) {
             String format = itemAttributes.get("format").getS();
-            Long previous_slope = Long.parseLong(itemAttributes.get("slope").getN());
-            Long previous_origin = Long.parseLong(itemAttributes.get("origin").getN());
+            Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+            Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
             metricsPerFormat.get(format).add(0, previous_slope);
             metricsPerFormat.get(format).add(1, previous_origin);
         }
@@ -659,22 +688,22 @@ public class MetricsDB {
         return metricsPerFormat;
     }
 
-    public static List<Long> getInsectWarMetrics() {
+    public static List<Double> getInsectWarMetrics() {
 
         //Index 0 - PerRoundArmyEqual
         //Index 1 - PerArmyRound1
-        List<Long> metrics = new ArrayList<Long>();
+        List<Double> metrics = new ArrayList<Double>();
 
         ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
 
         //basic default value if there is no metric yet
-        metrics.add(300000L);
-        metrics.add(1L);
+        metrics.add(300000.0);
+        metrics.add(1.0);
 
         for(Map<String,AttributeValue> itemAttributes : listItems) {
-            Long previous_perround = Long.parseLong(itemAttributes.get("roundincreasewhenarmyequal").getN());
-            Long previous_perarmy = Long.parseLong(itemAttributes.get("round1perarmysize").getN());
+            Double previous_perround = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
+            Double previous_perarmy = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
             metrics.add(0, previous_perround);
             metrics.add(1, previous_perarmy);
         }
