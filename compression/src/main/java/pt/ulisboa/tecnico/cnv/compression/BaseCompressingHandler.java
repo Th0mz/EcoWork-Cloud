@@ -36,7 +36,8 @@ public abstract class BaseCompressingHandler implements HttpHandler, RequestHand
             byte[] resultImage = process(bi, format, compressionFactor);
             long instructions = ServerICount.getInstructions(Thread.currentThread().getId());
             System.out.println(String.format("NUMBER OF INSTRUCITONS OF THREAD %s is %d", Thread.currentThread().getId(), instructions));
-            MetricsDB.saveMetric(new CompressObj(format, Float.toString(compressionFactor), instructions));
+            MetricsDB.saveMetric(new CompressObj(format, Float.toString(compressionFactor), 
+                bi.getHeight(), bi.getHeight()*bi.getHeight(), instructions));
 
             byte[] outputEncoded = Base64.getEncoder().encode(resultImage);
             return new String(outputEncoded);
