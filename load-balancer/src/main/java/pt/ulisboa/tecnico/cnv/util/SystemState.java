@@ -3,21 +3,16 @@ package pt.ulisboa.tecnico.cnv.util;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
-import com.amazonaws.services.cloudwatch.model.Datapoint;
-import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsRequest;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.cloudwatch.model.Dimension;
 import com.amazonaws.services.ec2.model.*;
 
-import java.awt.*;
-import java.io.IOException;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
 import java.net.URL;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemState {
@@ -26,8 +21,7 @@ public class SystemState {
     public static int AVG_STARTUP = 25;
     public static int CHECK_PENDING = 5;
     public static int CHECK_RUNNING = 5;
-    public static int AVG_PERIOD = 60;
-    public static int TEN_MINUTES = 10 * 60 * 1000;
+    public static int AVG_PERIOD = 30;
 
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
@@ -36,7 +30,7 @@ public class SystemState {
     public static String KEY_NAME = System.getenv("AWS_KEYPAIR_NAME");
 
     // TODO : read from image.id file
-    public static String AMI_ID = "ami-0565b1205b7daec41";
+    public String AMI_ID;
 
     public static String PROTOCOL = "http://";
     public static String PORT = ":8000";
@@ -60,7 +54,19 @@ public class SystemState {
             System.out.println("Error : Environment variables not set");
             System.exit(0);
         }
-        
+
+        try {
+            File imageFile = new File("../scripts/image.id");
+            Scanner scanner = new Scanner(imageFile);
+
+            AMI_ID = scanner.nextLine();
+
+        } catch (FileNotFoundException e) {
+            // Check if image.id exists
+            System.out.println("Error : File scripts/image.id doesn't exist");
+            System.exit(-1);
+        }
+
         System.out.println("creating ec2 client");
         this.ec2Client = AmazonEC2ClientBuilder.standard()
                 .withRegion(AWS_REGION)
@@ -75,9 +81,9 @@ public class SystemState {
 
         System.out.println("getting security id from name");
         this.getSecurityGroupID();
-        System.out.println("Security group id = " + this.SECURITY_GROUP);
+        System.out.println("Security group " + this.SECURITY_GROUP);
 
-        System.out.println("Launching three instances");
+        System.out.println("Launching three instances with image id " + AMI_ID);
         this.launchInstance();
         this.launchInstance();
         this.launchInstance();
@@ -87,7 +93,7 @@ public class SystemState {
 
         // TODO : remove
         TestTask task = new TestTask();
-        timer.scheduleAtFixedRate(task, 35 * 1000, (AVG_PERIOD + 1) * 1000);
+        timer.scheduleAtFixedRate(task, 35 * 1000, (AVG_PERIOD) * 1000);
     }
 
     public String getInstance() {
@@ -137,6 +143,8 @@ public class SystemState {
         // remove instance from the running structure
         this.runningInstances.remove(instanceID);
 
+        // TODO : wait for all requests to be executed, then terminate instance
+
         // terminate the instance in background
         TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest()
                 .withInstanceIds(instanceID);
@@ -145,25 +153,36 @@ public class SystemState {
     }
 
     public void updateCPUMetrics() {
+
         System.out.println("Updating CPU metrics");
-        Dimension instanceDimension = new Dimension();
-        instanceDimension.setName("InstanceId");
+        // Create a connection to the target URL
+        try {
+            for (InstanceState instance : this.runningInstances.values()) {
+                String link = instance.getUrl() + "/cpu";
+                URL url = new URL(link);
 
-        for (String instanceID : this.runningInstances.keySet()) {
-            instanceDimension.setValue(instanceID);
-            GetMetricStatisticsRequest request = new GetMetricStatisticsRequest()
-                    .withStartTime(new Date(new Date().getTime() - TEN_MINUTES))
-                    .withNamespace("AWS/EC2")
-                    .withPeriod(AVG_PERIOD)
-                    .withMetricName("CPUUtilization")
-                    .withStatistics("Average")
-                    .withDimensions(instanceDimension)
-                    .withEndTime(new Date());
+                /* Create connection to webserver
+                 *  ============================== */
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
+                // Set request method and headers
+                connection.setRequestMethod("GET");
+                connection.setDoOutput(true);
 
-            for (Datapoint dp : cloudWatch.getMetricStatistics(request).getDatapoints()) {
-                System.out.println(" CPU utilization for instance " + instanceID + " = " + dp.getAverage());
+                /*  Process received response from webserver
+                 *  =========================================*/
+                int responseCode = connection.getResponseCode();
+                // DEBUG : System.out.println("Response code = " + responseCode);
+
+                InputStream responseStream = connection.getInputStream();
+                byte[] responseBody = responseStream.readAllBytes();
+
+                Double avgCPU = Double.parseDouble(new String(responseBody));
+                instance.updateCPUAvg(avgCPU);
+                System.out.println("Instance " + instance.getId() + " was an average CPU usage of " + avgCPU);
             }
+        } catch (Exception e) {
+            System.err.println("[updateCPUMetrics] " + e.getMessage());
         }
     }
 
@@ -194,6 +213,9 @@ public class SystemState {
             boolean isRunning = checkInstanceRunning(instance);
             if (!isRunning) {
                 System.out.println("Instance " + instance.getId() + " stopped running");
+
+                // TODO : redirect requests to other machines
+
                 runningInstances.remove(instance.getId());
             }
         }
