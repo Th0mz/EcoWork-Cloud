@@ -28,18 +28,18 @@ public class WebServer {
         
         server.start();
 
-        /*
+        
         class UploadMetricsTask extends TimerTask {
             @Override
             public void run() {
                 System.out.println("Running scheduled fixed task");
-                MetricsDB.uploadAllMetrics();
-                MetricsDB.getAllItems();
+                MetricsDB.updateAllMetrics();
+              
             }
         }
 
         new Timer().scheduleAtFixedRate(new UploadMetricsTask(), 0, 20000);
-        */
+        
 
     }
 }
