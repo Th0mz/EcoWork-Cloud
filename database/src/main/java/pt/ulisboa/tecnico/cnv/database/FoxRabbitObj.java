@@ -27,7 +27,7 @@ public class FoxRabbitObj extends AbstractMetricObj {
 
     public static PutItemRequest generateRequest(String tableName, int nr_previous, int world, Long stat) {
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
-        itemValues.put("endpoint", new AttributeValue(endpoint));
+        itemValues.put("endpoint", new AttributeValue(endpoint+String.valueOf(world)));
         itemValues.put("world", new AttributeValue().withN(Integer.toString(world)));
         //TODO: itemValues.put("average", new AttributeValue().withN(Integer.toString(scenario)));
         itemValues.put("nr_previous", new AttributeValue().withN(Integer.toString(nr_previous)));
