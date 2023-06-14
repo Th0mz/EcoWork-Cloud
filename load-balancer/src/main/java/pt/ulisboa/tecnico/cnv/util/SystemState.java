@@ -11,6 +11,11 @@ import com.amazonaws.services.cloudwatch.model.Dimension;
 import com.amazonaws.services.ec2.model.*;
 
 import java.awt.*;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +26,8 @@ public class SystemState {
     public static int AVG_STARTUP = 25;
     public static int CHECK_PENDING = 5;
     public static int CHECK_RUNNING = 5;
-    public static int AVG_PERIOD = 5;
+    public static int AVG_PERIOD = 60;
+    public static int TEN_MINUTES = 10 * 60 * 1000;
 
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
@@ -42,7 +48,7 @@ public class SystemState {
     private AmazonCloudWatch cloudWatch;
 
     // Instances :
-    protected ConcurrentHashMap<String, WaitForRunningTask> pendingInstances = new ConcurrentHashMap();
+    protected ConcurrentHashMap<String, TimerTask> pendingInstances = new ConcurrentHashMap();
     protected ConcurrentHashMap<String, InstanceState> runningInstances = new ConcurrentHashMap<>();
 
     private Random generator = new Random();
@@ -77,11 +83,11 @@ public class SystemState {
         this.launchInstance();
 
         runningCheckTask = new RunningCheckTask();
-        timer.scheduleAtFixedRate(runningCheckTask, CHECK_RUNNING * 1000, CHECK_RUNNING * 1000);
+        timer.scheduleAtFixedRate(runningCheckTask, 35000, CHECK_RUNNING * 1000);
 
         // TODO : remove
         TestTask task = new TestTask();
-        timer.scheduleAtFixedRate(task, 35 * 1000, 5 * 1000);
+        timer.scheduleAtFixedRate(task, 35 * 1000, (AVG_PERIOD + 1) * 1000);
     }
 
     public String getInstance() {
@@ -146,7 +152,7 @@ public class SystemState {
         for (String instanceID : this.runningInstances.keySet()) {
             instanceDimension.setValue(instanceID);
             GetMetricStatisticsRequest request = new GetMetricStatisticsRequest()
-                    .withStartTime(new Date(new Date().getTime() - (AVG_PERIOD * 1000) - 5000))
+                    .withStartTime(new Date(new Date().getTime() - TEN_MINUTES))
                     .withNamespace("AWS/EC2")
                     .withPeriod(AVG_PERIOD)
                     .withMetricName("CPUUtilization")
@@ -161,36 +167,39 @@ public class SystemState {
         }
     }
 
+    public boolean checkInstanceRunning(InstanceState instance) {
 
-    public void checkRunningInstances () {
-        if (this.runningInstances.size() == 0) {
-            return;
+        String urlString = instance.getUrl() + "/test";
+
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setDoOutput(true);
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
         }
 
-        // TODO : just do a ping to the /test endpoint
-        System.out.println("Checking if none of the instances failed");
-        DescribeInstancesRequest describeRequest = new DescribeInstancesRequest()
-                .withInstanceIds(this.runningInstances.keySet());
+        return true;
+    }
 
-        DescribeInstancesResult describeResult = ec2Client.describeInstances(describeRequest);
-        List<Reservation> reservations = describeResult.getReservations();
-
-        for (Reservation reservation : reservations) {
-            List<Instance> instances = reservation.getInstances();
-            if (instances.size() > 1) {
-                System.out.println("Error : reservation with more that one instance on it");
-            }
-
-            Instance instance = instances.get(0);
-            String iid = instance.getInstanceId();
-            String ipAddress = instance.getPublicIpAddress();
-
-            if (instance.getState().getCode() != 16) {
-                System.out.println("Instance " + iid + " stopped running, its state is now " + instance.getState().getName());
-                runningInstances.remove(iid);
+    public void checkRunningInstances () {
+        System.out.println("Checking if some instance failed");
+        for (InstanceState instance : this.runningInstances.values()) {
+            boolean isRunning = checkInstanceRunning(instance);
+            if (!isRunning) {
+                System.out.println("Instance " + instance.getId() + " stopped running");
+                runningInstances.remove(instance.getId());
             }
         }
     }
+
+
 
     private class WaitForRunningTask extends TimerTask {
         private String instanceID;
@@ -216,16 +225,49 @@ public class SystemState {
             if (instance.getState().getCode() == 16) {
                 // Instance is running
                 String url = PROTOCOL + ipAddress + PORT;
-                runningInstances.put(iid, new InstanceState(url));
-                pendingInstances.remove(instanceID);
+                InstanceState instanceState = new InstanceState(iid, url);
+
+                WaitForWebserverTask task = new WaitForWebserverTask(instanceState);
+                pendingInstances.put(instanceState.getId(), task);
+
+                timer.schedule(task, 3000);
 
                 System.out.println("Instance " + this.instanceID + " is running");
+
             } else {
                 // Instance isn't yet running
                 WaitForRunningTask task = new WaitForRunningTask(this.instanceID);
                 timer.schedule(task, CHECK_PENDING * 1000);
                 pendingInstances.put(instanceID, task);
-                this.cancel();
+            }
+
+            this.cancel();
+        }
+    }
+
+    private class WaitForWebserverTask extends TimerTask {
+        private InstanceState instanceState;
+
+        public WaitForWebserverTask(InstanceState instanceState) {
+            this.instanceState = instanceState;
+        }
+
+        @Override
+        public void run() {
+
+            Boolean running = checkInstanceRunning(instanceState);
+            if (running) {
+                // Webserver is running
+                String instanceID = instanceState.getId();
+                runningInstances.put(instanceID, instanceState);
+                pendingInstances.remove(instanceID);
+
+                System.out.println("Webserver of instance " + instanceID + " is running");
+            } else {
+                // Webserver isn't yet running
+                WaitForWebserverTask task = new WaitForWebserverTask(this.instanceState);
+                timer.schedule(task, CHECK_PENDING * 1000);
+                pendingInstances.put(this.instanceState.getId(), task);
             }
         }
     }

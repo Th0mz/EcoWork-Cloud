@@ -24,9 +24,11 @@ public class WebServer {
         server.createContext("/compressimage", new CompressImageHandlerImpl());
         server.createContext("/insectwar", new WarSimulationHandler());
         server.createContext("/test", new RootHandler());
+        server.createContext("/cpu", new MetricsHandler());
         
         server.start();
 
+        /*
         class UploadMetricsTask extends TimerTask {
             @Override
             public void run() {
@@ -37,5 +39,7 @@ public class WebServer {
         }
 
         new Timer().scheduleAtFixedRate(new UploadMetricsTask(), 0, 20000);
+        */
+
     }
 }
