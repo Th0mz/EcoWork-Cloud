@@ -31,7 +31,7 @@ public class CompressObj extends AbstractMetricObj {
     public static PutItemRequest generateRequest(String tableName, String format, double slope, double origin, int nr_previous) {
         //TODO: What is actually the metric
         Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
-        itemValues.put("endpoint", new AttributeValue("compress"));
+        itemValues.put("endpoint", new AttributeValue("compress"+format));
         itemValues.put("format", new AttributeValue(format));
         itemValues.put("slope", new AttributeValue().withN(Double.toString(slope)));
         itemValues.put("origin", new AttributeValue().withN(Double.toString(origin)));
