@@ -85,7 +85,9 @@ public class LBSimulationHandler implements HttpHandler {
             /*  Process received response from webserver and send it to the client
              *  ================================================================== */
             int responseCode = connection.getResponseCode();
-            // DEBUG : System.out.println("Response code = " + responseCode);
+            if (responseCode != 200) {
+                // TODO : instance failed must send to other instance
+            }
 
             InputStream responseStream = connection.getInputStream();
             byte[] responseBody = responseStream.readAllBytes();
@@ -105,6 +107,7 @@ public class LBSimulationHandler implements HttpHandler {
             connection.disconnect();
         } catch (IOException e) {
             // TODO
+            // TODO : instance failed must send to other instance
         }
     }
 

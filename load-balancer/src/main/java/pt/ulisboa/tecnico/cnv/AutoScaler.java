@@ -1,9 +1,10 @@
 package pt.ulisboa.tecnico.cnv;
 
 
+import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
-import java.util.Timer;
-import java.util.TimerTask;
+
+import java.util.*;
 
 
 public class AutoScaler extends TimerTask {
@@ -49,13 +50,13 @@ public class AutoScaler extends TimerTask {
         // If extremely over/underloade increase/decrease by 10%
         // Minimum of 1 instance always runnung
         if (avg >= 80 && avg < 90) {
-            launchInstances(Math.ceil(count * 0.05));
+            launchInstances((int) Math.ceil(count * 0.05));
         } else if (avg > 90) {
-            launchInstances(Math.ceil(count * 0.1));
+            launchInstances((int) Math.ceil(count * 0.1));
         } else if ( avg <= 25 && avg > 15) {
-            terminateInstances(currentState, Math.ceil(count * 0.05))
+            terminateInstances(currentState, (int) Math.ceil(count * 0.05));
         } else if (avg <= 15 && count > 1) {
-            terminateInstances(currentState, Math.ceil(count*0.1));
+            terminateInstances(currentState, (int) Math.ceil(count*0.1));
         }
     }
 
@@ -63,14 +64,13 @@ public class AutoScaler extends TimerTask {
         for (int i = 0; i < nrInsNew; i++) {
             _state.launchInstance();
         }
-
     }
 
     private void terminateInstances(ArrayList<InstanceState> instances, int nrInsTerminate) {
         Collections.sort(instances, new Comparator<InstanceState>() {
             @Override
             public int compare(final InstanceState lhs, InstanceState rhs) {
-              return (int)(lhs.getCPUAvg - rhs.getCPUAvg);
+              return (int)(lhs.getCPUAvg() - rhs.getCPUAvg());
             }
           });
 

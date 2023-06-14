@@ -90,10 +90,12 @@ public class LBCompressImageHandler implements HttpHandler {
                 connection.getOutputStream().write(requestBody);
             }
 
-
             /*  Process received response from webserver and send it to the client
              *  ================================================================== */
             int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                // TODO : instance failed must send to other instance
+            }
 
             InputStream responseStream = connection.getInputStream();
             byte[] responseBody = responseStream.readAllBytes();
@@ -109,6 +111,7 @@ public class LBCompressImageHandler implements HttpHandler {
             connection.disconnect();
         } catch (IOException e) {
             // TODO
+            // TODO : instance failed must send to other instance?
         }
     }
 

@@ -21,7 +21,7 @@ public class SystemState {
     public static int AVG_STARTUP = 25;
     public static int CHECK_PENDING = 5;
     public static int CHECK_RUNNING = 5;
-    public static int AVG_PERIOD = 30;
+    public static int REMOVE_CHECK = 30;
 
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
@@ -35,7 +35,6 @@ public class SystemState {
     public static String PROTOCOL = "http://";
     public static String PORT = ":8000";
 
-    private RunningCheckTask runningCheckTask;
     private Timer timer = new Timer();
 
     private AmazonEC2 ec2Client;
@@ -86,14 +85,10 @@ public class SystemState {
         System.out.println("Launching three instances with image id " + AMI_ID);
         this.launchInstance();
         this.launchInstance();
-        this.launchInstance();
 
-        runningCheckTask = new RunningCheckTask();
+        RunningCheckTask runningCheckTask = new RunningCheckTask();
         timer.scheduleAtFixedRate(runningCheckTask, 35000, CHECK_RUNNING * 1000);
 
-        // TODO : remove
-        TestTask task = new TestTask();
-        timer.scheduleAtFixedRate(task, 35 * 1000, (AVG_PERIOD) * 1000);
     }
 
     public String getInstance() {
@@ -141,18 +136,22 @@ public class SystemState {
     public void terminateInstance(String instanceID) {
 
         // remove instance from the running structure
-        this.runningInstances.remove(instanceID);
+        InstanceState instance =  this.runningInstances.remove(instanceID);
 
-        // TODO : wait for all requests to be executed, then terminate instance
+        if (!instance.hasRequests()) {
+            // terminate the instance in background
+            TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest()
+                    .withInstanceIds(instanceID);
 
-        // terminate the instance in background
-        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest()
-                .withInstanceIds(instanceID);
-
-        TerminateInstancesResult terminateInstancesResult = ec2Client.terminateInstances(terminateInstancesRequest);
+            ec2Client.terminateInstances(terminateInstancesRequest);
+            System.out.println("Instance " + instance.getId() + " terminated");
+        } else {
+            CheckTerminate task = new CheckTerminate(instance);
+            timer.schedule(task, REMOVE_CHECK * 1000);
+        }
     }
 
-    protected ArrayList<InstanceState> getRunningInstances() {
+    public ArrayList<InstanceState> getRunningInstances() {
         //Does this need locks?
         return new ArrayList<>(this.runningInstances.values());
     }
@@ -218,15 +217,37 @@ public class SystemState {
             boolean isRunning = checkInstanceRunning(instance);
             if (!isRunning) {
                 System.out.println("Instance " + instance.getId() + " stopped running");
-
-                // TODO : redirect requests to other machines
-
                 runningInstances.remove(instance.getId());
             }
         }
     }
 
 
+    private class CheckTerminate extends TimerTask {
+
+        private InstanceState instance;
+
+        public CheckTerminate(InstanceState instance) {
+            this.instance = instance;
+        }
+
+        @Override
+        public void run() {
+            if (!this.instance.hasRequests()) {
+                TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest()
+                        .withInstanceIds(this.instance.getId());
+
+                ec2Client.terminateInstances(terminateInstancesRequest);
+                System.out.println("All requests handled from instance " + instance.getId() + ", terminating it");
+                return;
+            }
+
+            // reschedule task
+            CheckTerminate task = new CheckTerminate(instance);
+            timer.schedule(task, REMOVE_CHECK * 1000);
+            this.cancel();
+        }
+    }
 
     private class WaitForRunningTask extends TimerTask {
         private String instanceID;
@@ -303,14 +324,6 @@ public class SystemState {
         @Override
         public void run() {
             checkRunningInstances();
-        }
-    }
-
-    private class TestTask extends TimerTask {
-        // TODO : remove, just used for test purposes
-        @Override
-        public void run() {
-            updateCPUMetrics();
         }
     }
 }

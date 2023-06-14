@@ -89,6 +89,9 @@ public class LBWarSimulationHandler implements HttpHandler {
             /*  Process received response from webserver and send it to the client
              *  ================================================================== */
             int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                // TODO : instance failed must send to other instance
+            }
 
             InputStream responseStream = connection.getInputStream();
             byte[] responseBody = responseStream.readAllBytes();
