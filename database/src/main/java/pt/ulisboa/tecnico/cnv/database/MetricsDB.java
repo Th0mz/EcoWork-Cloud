@@ -73,23 +73,29 @@ public class MetricsDB {
 
     public static void main(String[] args) throws Exception {
         MetricsDB.createDB();
-        MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 100000));
-        MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 50000));
-        MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 30000));
-        MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 150000));
-        MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 55000));
-        MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 35000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 1000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 500));
+        //MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 300));
+        //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
+        //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
+        //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
+        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 2, 4, 14));
+        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 3, 5, 16));
+        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 4, 6, 18));
+        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 5, 7, 20));
+        MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 6, 8, 19));
 
         updateAllMetrics();
 
-        MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 130000));
-        MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 53000));
-        MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 33000));
-        MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 114000));
-        MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 51400));
-        MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 31400));
 
-        updateAllMetrics();
+        //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 5000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 53000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 33000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 6000));
+        //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 51400));
+        //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 31400));
+
+        //updateAllMetrics();
     }
 
     public static void createDB() throws Exception {
@@ -245,9 +251,9 @@ public class MetricsDB {
         //TODO: LOCK DB
         //DynamoLock()
         updateFoxesRabbits();
-        if(bmpImages.size() > 5) updateBMP();
-        if(pngImages.size() > 5) updatePNG();
-        if(jpgImages.size() > 5) updateJPG();
+        if(bmpImages.size() >= 3) updateBMP();
+        if(pngImages.size() >= 3) updatePNG();
+        if(jpgImages.size() >= 3) updateJPG();
         updateInsectWars();
         //DynamoUnlock()
     }
@@ -295,6 +301,7 @@ public class MetricsDB {
                 }
             }
         }
+        if (nr_measures == 0) nr_measures = 1;
         estimatePerRound /= nr_measures; 
 
 
@@ -312,6 +319,7 @@ public class MetricsDB {
                 estimatePerArmy += functionOfArmy;
             }
         }
+        if (nr_measures_roundone == 0) nr_measures_roundone = 1;
         estimatePerArmy /= nr_measures_roundone; 
 
         Integer nr_finalPerRound, nr_finalPerArmy;
@@ -324,7 +332,6 @@ public class MetricsDB {
             nr_finalPerRound = nr_measures + nr_roundincreasewhenarmyequal;
             finalPerRound = (estimatePerRound * nr_measures + 
                     roundincreasewhenarmyequal * nr_roundincreasewhenarmyequal) / nr_finalPerRound;
-            
         }
 
         if (estimatePerArmy == 0) {
@@ -336,11 +343,10 @@ public class MetricsDB {
                     round1perarmysize * nr_round1perarmysize) / nr_finalPerArmy;
             
         }
-
-        System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%d PERARMY-%d", estimatePerRound, estimatePerArmy));
+    
+        System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%d PERARMY-%d", finalPerRound, finalPerArmy));
         client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
                 nr_finalPerRound, finalPerRound));
-    
 
         objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
     }
@@ -355,34 +361,36 @@ public class MetricsDB {
         }
 
         HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Long> previousSlope = new HashMap<String, Long>();
-        HashMap<String, Long> previousOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        HashMap<String, Long> sumEachSlope = new HashMap<String, Long>();
-        HashMap<String, Long> sumEachOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
         List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
         for(String t : formats) {
-            sumEachSlope.put(t, 0L);
-            sumEachOrigin.put(t, 0L);
+            sumEachSlope.put(t, 0.0);
+            sumEachOrigin.put(t, 0.0);
             totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0L);
-            previousOrigin.put(t, 0L);
+            previousSlope.put(t, 0.0);
+            previousOrigin.put(t, 0.0);
             nr_previous.put(t, 0);
         }
 
-        ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
 
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            String format = itemAttributes.get("format").getS();
-            Long previous_slope = Long.parseLong(itemAttributes.get("slope").getN());
-            Long previous_origin = Long.parseLong(itemAttributes.get("origin").getN());
-            int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-            nr_previous.put(format, previous_runs);
-            previousSlope.put(format, previous_slope);
-            previousOrigin.put(format, previous_origin);
+        for(String f : formats) {
+            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                String format = itemAttributes.get("format").getS();
+                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                nr_previous.put(format, previous_runs);
+                previousSlope.put(format, previous_slope);
+                previousOrigin.put(format, previous_origin);
+            }
         }
 
         List<Double> x = new ArrayList<Double>();
@@ -397,6 +405,8 @@ public class MetricsDB {
 
         Double newSlope = regression.slope();
         Double newOrigin = regression.intercept();
+        System.out.println("NEW SLOPE: " + newSlope);
+        System.out.println("NEW ORIGIN: " + newOrigin);
 
         Integer numberMeasures = nr_previous.get("bmp")+bmpImages.size();
         Double finalSlope = (newSlope * bmpImages.size() + previousSlope.get("bmp") * nr_previous.get("bmp")) / numberMeasures;
@@ -417,34 +427,36 @@ public class MetricsDB {
         }
 
         HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Long> previousSlope = new HashMap<String, Long>();
-        HashMap<String, Long> previousOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        HashMap<String, Long> sumEachSlope = new HashMap<String, Long>();
-        HashMap<String, Long> sumEachOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
         List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
         for(String t : formats) {
-            sumEachSlope.put(t, 0L);
-            sumEachOrigin.put(t, 0L);
+            sumEachSlope.put(t, 0.0);
+            sumEachOrigin.put(t, 0.0);
             totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0L);
-            previousOrigin.put(t, 0L);
+            previousSlope.put(t, 0.0);
+            previousOrigin.put(t, 0.0);
             nr_previous.put(t, 0);
         }
 
-        ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
 
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            String format = itemAttributes.get("format").getS();
-            Long previous_slope = Long.parseLong(itemAttributes.get("slope").getN());
-            Long previous_origin = Long.parseLong(itemAttributes.get("origin").getN());
-            int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-            nr_previous.put(format, previous_runs);
-            previousSlope.put(format, previous_slope);
-            previousOrigin.put(format, previous_origin);
+        for(String f : formats) {
+            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                String format = itemAttributes.get("format").getS();
+                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                nr_previous.put(format, previous_runs);
+                previousSlope.put(format, previous_slope);
+                previousOrigin.put(format, previous_origin);
+            }
         }
 
         List<Double> x = new ArrayList<Double>();
@@ -480,34 +492,37 @@ public class MetricsDB {
         }
 
         HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Long> previousSlope = new HashMap<String, Long>();
-        HashMap<String, Long> previousOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        HashMap<String, Long> sumEachSlope = new HashMap<String, Long>();
-        HashMap<String, Long> sumEachOrigin = new HashMap<String, Long>();
+        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
         List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
         for(String t : formats) {
-            sumEachSlope.put(t, 0L);
-            sumEachOrigin.put(t, 0L);
+            sumEachSlope.put(t, 0.0);
+            sumEachOrigin.put(t, 0.0);
             totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0L);
-            previousOrigin.put(t, 0L);
+            previousSlope.put(t, 0.0);
+            previousOrigin.put(t, 0.0);
             nr_previous.put(t, 0);
         }
 
-        ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
+        
 
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            String format = itemAttributes.get("format").getS();
-            Long previous_slope = Long.parseLong(itemAttributes.get("slope").getN());
-            Long previous_origin = Long.parseLong(itemAttributes.get("origin").getN());
-            int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-            nr_previous.put(format, previous_runs);
-            previousSlope.put(format, previous_slope);
-            previousOrigin.put(format, previous_origin);
+        for(String f : formats) {
+            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                String format = itemAttributes.get("format").getS();
+                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                nr_previous.put(format, previous_runs);
+                previousSlope.put(format, previous_slope);
+                previousOrigin.put(format, previous_origin);
+            }
         }
 
         List<Double> x = new ArrayList<Double>();
@@ -554,15 +569,17 @@ public class MetricsDB {
             nr_previous.put(n_world, 0);
         }
 
-        ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
+        for(int n_world = 1; n_world <= 4; n_world++) {
+            ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint + String.valueOf(n_world));
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
 
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            int wrld = Integer.parseInt(itemAttributes.get("world").getN());
-            int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-            Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
-            nr_previous.put(wrld, previous_runs);
-            previousMetric.put(wrld, previous_metric);
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                int wrld = Integer.parseInt(itemAttributes.get("world").getN());
+                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                Long previous_metric = Long.parseLong(itemAttributes.get("statistic").getN());
+                nr_previous.put(wrld, previous_runs);
+                previousMetric.put(wrld, previous_metric);
+            }
         }
 
         for(AbstractMetricObj obj : objsToSave.get(FoxRabbitObj.endpoint)) {
@@ -574,11 +591,22 @@ public class MetricsDB {
         }
 
         for(int n_world = 1; n_world <= 4; n_world++) {
-            Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world-1);
+            //System.out.println(String.format("============= [FOXRABBIT - WORLD] ==============="));
+            //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
+            //System.out.println(String.format("totalMeasuresPerWorld = %d", totalMeasuresPerWorld.get(n_world)));
+
+            Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world);
+            //System.out.println(String.format("numberMeasures = %d", numberMeasures));
+
+            int actualMeasures = numberMeasures;
             if (numberMeasures == 0) numberMeasures = 1;
             Long finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
-            System.out.println("[FOXRABBIT - WORLD "+ n_world + "]NEW STATISTIC "+ finalStat);
-            client.putItem(FoxRabbitObj.generateRequest(tableName, numberMeasures, n_world, finalStat));
+            //System.out.println(String.format("sumEachWorld = %d", sumEachWorld.get(n_world)));
+            //System.out.println(String.format("previousMetric = %d", previousMetric.get(n_world)));
+            //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
+ 
+            //System.out.println("[FOXRABBIT - WORLD "+ n_world + "]NEW STATISTIC "+ finalStat);
+            client.putItem(FoxRabbitObj.generateRequest(tableName, actualMeasures, n_world, finalStat));
         }
 
         objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
