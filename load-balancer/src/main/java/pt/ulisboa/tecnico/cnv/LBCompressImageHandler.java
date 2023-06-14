@@ -1,12 +1,18 @@
 package pt.ulisboa.tecnico.cnv;
 
+import com.amazonaws.services.rekognition.model.CompareFacesRequest;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import pt.ulisboa.tecnico.cnv.requests.CompressRequest;
+import pt.ulisboa.tecnico.cnv.requests.FoxAndRabbitsRequest;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,52 +45,71 @@ public class LBCompressImageHandler implements HttpHandler {
 
         /*  Parse received request
          *  ====================== */
-
-        /*
-         *  ====================== */
-        // TODO : choose to which instance is going to handle the
-
-        // Create a connection to the target URL
-        URL url = new URL(state.getInstance() + path);
-        System.out.println("[LB-compress] Sending request to " + url);
-
-        /* Create connection to webserver
-         *  ============================== */
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-        // Set request method and headers from the client's request
-        connection.setRequestMethod(exchange.getRequestMethod());
-        connection.setDoOutput(true);
-        exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
-
-        // Forward the client's request body, if present
         byte[] requestBody = exchange.getRequestBody().readAllBytes();
-        if (requestBody.length > 0) {
-            connection.getOutputStream().write(requestBody);
+        String result = new String(requestBody);
+        String[] resultSplits = result.split(",");
+        String targetFormat = resultSplits[0].split(":")[1].split(";")[0];
+        String compressionFactor = resultSplits[0].split(":")[2].split(";")[0];
+
+
+        byte[] decoded = Base64.getDecoder().decode(resultSplits[1]);
+        ByteArrayInputStream bais = new ByteArrayInputStream(decoded);
+        BufferedImage bi = ImageIO.read(bais);
+
+        // bi.getHeight()
+
+        // TODO : estimate cost
+        long cost = 1000L;
+        CompressRequest request = new CompressRequest(requestBody, cost, exchange);
+        sendRequest(request);
+    }
+
+    public void sendRequest(CompressRequest request) {
+        try {
+            byte[] requestBody = request.getResponseBody();
+            HttpExchange exchange = request.getClient();
+
+            // TODO : choose instance
+            // TODO : add this request to its request list
+
+            // Create a connection to the target URL
+            URL url = new URL(state.getInstance() + path);
+            System.out.println("[LB-compress] Sending request to " + url);
+
+            /* Create connection to webserver
+             *  ============================== */
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            // Set request method and headers from the client's request
+            connection.setRequestMethod(exchange.getRequestMethod());
+            connection.setDoOutput(true);
+            exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
+
+            // Forward the client's request body, if present
+            if (requestBody.length > 0) {
+                connection.getOutputStream().write(requestBody);
+            }
+
+
+            /*  Process received response from webserver and send it to the client
+             *  ================================================================== */
+            int responseCode = connection.getResponseCode();
+
+            InputStream responseStream = connection.getInputStream();
+            byte[] responseBody = responseStream.readAllBytes();
+
+            // Send the target server's response body back to the client
+            exchange.sendResponseHeaders(responseCode, responseBody.length);
+            OutputStream outputStream = exchange.getResponseBody();
+            outputStream.write(responseBody);
+            outputStream.close();
+
+            // Close connections
+            responseStream.close();
+            connection.disconnect();
+        } catch (IOException e) {
+            // TODO
         }
-
-
-        /*  Process received response from webserver and send it to the client
-         *  ================================================================== */
-        int responseCode = connection.getResponseCode();
-        System.out.println("Response code = " + responseCode);
-
-        InputStream responseStream = connection.getInputStream();
-        byte[] responseBody = responseStream.readAllBytes();
-
-        System.out.println("RESPONSE");
-        // DEBUG : System.out.println(new String(responseBody, StandardCharsets.UTF_8));
-
-
-        // Send the target server's response body back to the client
-        exchange.sendResponseHeaders(responseCode, responseBody.length);
-        OutputStream outputStream = exchange.getResponseBody();
-        outputStream.write(responseBody);
-        outputStream.close();
-
-        // Close connections
-        responseStream.close();
-        connection.disconnect();
     }
 
     public Map<String, String> queryToMap(String query) {
