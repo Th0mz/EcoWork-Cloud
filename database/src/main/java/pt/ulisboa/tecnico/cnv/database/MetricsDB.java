@@ -90,12 +90,19 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
         //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
         //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 2, 4, 14));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 3, 5, 16));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 4, 6, 18));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 5, 7, 20));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 6, 8, 22));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 7, 9, 24));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 1156, 1336336, 865569L));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.3", 1156, 1336336, 866164L));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 1156, 1336336, 875353L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.2", 1156, 1336336, 865569L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.3", 1156, 1336336, 866164L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.4", 1156, 1336336, 875353L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.2", 1156, 1336336, 865569L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.3", 1156, 1336336, 866164L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.4", 1156, 1336336, 875353L));
+        
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
         //MetricsDB.saveMetric(new InsectWarObj(1, 5, 5, 10000));
         //MetricsDB.saveMetric(new InsectWarObj(2, 5, 5, 1510000));
 
@@ -229,12 +236,13 @@ public class MetricsDB {
             }
 
         } else if(obj instanceof CompressObj) {
+            System.out.println("Format: " + ((CompressObj) obj).getFormat());
             objsToSave.get(CompressObj.endpoint).add((CompressObj)obj);
-            if(((CompressObj) obj).getFormat() == "bmp") {
+            if(((CompressObj) obj).getFormat().equals("bmp")) {
                 bmpImages.add((CompressObj) obj);
-            } else if(((CompressObj) obj).getFormat() == "png") {
+            } else if(((CompressObj) obj).getFormat().equals("png")) {
                 pngImages.add((CompressObj) obj);
-            } else if(((CompressObj) obj).getFormat() == "jpg") {
+            } else if(((CompressObj) obj).getFormat().equals("jpeg")) {
                 jpgImages.add((CompressObj) obj);
             } 
 
@@ -408,7 +416,7 @@ public class MetricsDB {
         HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
+        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
         for(String t : formats) {
             sumEachSlope.put(t, 0.0);
             sumEachOrigin.put(t, 0.0);
@@ -436,10 +444,15 @@ public class MetricsDB {
         List<Double> x = new ArrayList<Double>();
         List<Double> y = new ArrayList<Double>();
 
+        int x_temp = bmpImages.get(0).getHeight();
+        boolean enough_points = false;
         for(CompressObj obj : bmpImages) {
+            if(obj.getHeight() != x_temp) enough_points = true; 
             x.add(obj.getHeight().doubleValue());
             y.add(obj.getInstructions().doubleValue());
         }
+
+        if (!enough_points) return;
 
         LinearRegression regression = new LinearRegression(x, y);
         regression.calculateRegression();
@@ -475,7 +488,7 @@ public class MetricsDB {
         HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
+        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
         for(String t : formats) {
             sumEachSlope.put(t, 0.0);
             sumEachOrigin.put(t, 0.0);
@@ -503,10 +516,15 @@ public class MetricsDB {
         List<Double> x = new ArrayList<Double>();
         List<Double> y = new ArrayList<Double>();
 
+        int x_temp = jpgImages.get(0).getPixels();
+        boolean enough_points = false;
         for(CompressObj obj : jpgImages) {
+            if(obj.getPixels() != x_temp) enough_points = true;
             x.add(obj.getPixels().doubleValue());
             y.add(obj.getInstructions().doubleValue());
         }
+
+        if(!enough_points) return;
 
         LinearRegression regression = new LinearRegression(x, y);
         regression.calculateRegression();
@@ -514,11 +532,11 @@ public class MetricsDB {
         Double newSlope = regression.getSlope();
         Double newOrigin = regression.getOrigin();
 
-        Integer numberMeasures = nr_previous.get("jpg")+jpgImages.size();
-        Double finalSlope = (newSlope * jpgImages.size() + previousSlope.get("jpg") * nr_previous.get("jpg")) / numberMeasures;
-        Double finalOrigin = (newOrigin * jpgImages.size() + previousOrigin.get("jpg") * nr_previous.get("jpg")) / numberMeasures;
+        Integer numberMeasures = nr_previous.get("jpeg")+jpgImages.size();
+        Double finalSlope = (newSlope * jpgImages.size() + previousSlope.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
+        Double finalOrigin = (newOrigin * jpgImages.size() + previousOrigin.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
         System.out.println("[COMPRESS - JPG] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
-        client.putItem(CompressObj.generateRequest(tableName, "jpg", finalSlope, finalOrigin, numberMeasures));
+        client.putItem(CompressObj.generateRequest(tableName, "jpeg", finalSlope, finalOrigin, numberMeasures));
         
         objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
         jpgImages.clear();
@@ -541,7 +559,7 @@ public class MetricsDB {
         HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
         List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpg"); //TODO: check formats
+        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
         for(String t : formats) {
             sumEachSlope.put(t, 0.0);
             sumEachOrigin.put(t, 0.0);
@@ -570,16 +588,22 @@ public class MetricsDB {
         List<Double> x = new ArrayList<Double>();
         List<Double> y = new ArrayList<Double>();
 
+        int x_temp = pngImages.get(0).getPixels();
+        boolean enough_points = false;
         for(CompressObj obj : pngImages) {
+            if(obj.getPixels() != x_temp) enough_points = true;
             x.add(obj.getPixels().doubleValue());
             y.add(obj.getInstructions().doubleValue());
         }
+        if(!enough_points) return;
 
         LinearRegression regression = new LinearRegression(x, y);
         regression.calculateRegression();
 
         Double newSlope = regression.getSlope();
         Double newOrigin = regression.getOrigin();
+        System.out.println("NEW SLOPE: " + newSlope);
+        System.out.println("NEW ORIGIN: " + newOrigin);
 
         Integer numberMeasures = nr_previous.get("png")+pngImages.size();
         Double finalSlope = (newSlope * pngImages.size() + previousSlope.get("png") * nr_previous.get("png")) / numberMeasures;
@@ -688,7 +712,7 @@ public class MetricsDB {
         List<Map<String,AttributeValue>> listItems = sr.getItems();
             
         metricsPerFormat.put("bmp", new ArrayList<Double>(List.of(0.0,0.0)));
-        metricsPerFormat.put("jpg", new ArrayList<Double>(List.of(0.0,0.0))); 
+        metricsPerFormat.put("jpeg", new ArrayList<Double>(List.of(0.0,0.0))); 
         metricsPerFormat.put("png", new ArrayList<Double>(List.of(0.0,0.0))); 
 
         for(Map<String,AttributeValue> itemAttributes : listItems) {
