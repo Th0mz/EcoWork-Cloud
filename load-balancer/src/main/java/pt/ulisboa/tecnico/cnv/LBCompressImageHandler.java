@@ -1,10 +1,8 @@
 package pt.ulisboa.tecnico.cnv;
 
-import com.amazonaws.services.rekognition.model.CompareFacesRequest;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.CompressRequest;
-import pt.ulisboa.tecnico.cnv.requests.FoxAndRabbitsRequest;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
@@ -74,12 +72,13 @@ public class LBCompressImageHandler implements HttpHandler {
     public void sendRequest(CompressRequest request) {
         byte[] requestBody = request.getResponseBody();
         HttpExchange exchange = request.getClient();
+        InstanceState bestInstance = null;
 
         while (request.getTries() < 3) {
             try {
 
                 // get best instance (one with the lowest instructions)
-                InstanceState bestInstance = state.getInstance();
+                bestInstance = state.getInstance();
                 bestInstance.newRequest(request);
 
                 // Create a connection to the target URL
@@ -108,6 +107,7 @@ public class LBCompressImageHandler implements HttpHandler {
                 int responseCode = connection.getResponseCode();
                 if (responseCode != 200) {
                     System.out.println("[LB-compress] Instance failed to deliver result (status code != 200), going to try again...");
+                    bestInstance.finishRequest(request.getId());
                     continue;
                 }
 
@@ -130,6 +130,9 @@ public class LBCompressImageHandler implements HttpHandler {
                 connection.disconnect();
             } catch (IOException e) {
                 System.out.println("[LB-compress] Instance failed to deliver result (exception thrown), going to try again...");
+                if (bestInstance != null) {
+                    bestInstance.finishRequest(request.getId());
+                }
             }
         }
 

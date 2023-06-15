@@ -86,12 +86,13 @@ public class LBWarSimulationHandler implements HttpHandler {
     public void sendRequest(InsectWarsRequest request) {
         Map<String, String> parameters = request.getParameters();
         HttpExchange exchange = request.getClient();
+        InstanceState bestInstance = null;
 
         while (request.getTries() < 3) {
             try {
 
                 // get best instance (one with the lowest instructions)
-                InstanceState bestInstance = state.getInstance();
+                bestInstance = state.getInstance();
                 bestInstance.newRequest(request);
 
                 // Create a connection to the target URL
@@ -126,7 +127,8 @@ public class LBWarSimulationHandler implements HttpHandler {
                 boolean finished = bestInstance.finishRequest(request.getId());
                 if (!finished) {
                     System.out.println("[LB-war] Instance failed to deliver result (status code != 200), going to try again...");
-                    System.out.println("Error : Request " + request.getId() + "tryed to finish at instance " + bestInstance.getId() + "but wasn't found");
+                    bestInstance.finishRequest(request.getId());
+                    continue;
                 }
 
 
@@ -147,6 +149,9 @@ public class LBWarSimulationHandler implements HttpHandler {
                 return;
             } catch (IOException e) {
                 System.out.println("[LB-war] Instance failed to deliver result (exception thrown), going to try again...");
+                if (bestInstance != null) {
+                    bestInstance.finishRequest(request.getId());
+                }
             }
         }
 

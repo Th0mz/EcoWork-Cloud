@@ -65,13 +65,14 @@ public class LBSimulationHandler implements HttpHandler {
     public void sendRequest(FoxAndRabbitsRequest request) {
         Map<String, String> parameters = request.getParameters();
         HttpExchange exchange = request.getClient();
+        InstanceState bestInstance = null;
 
         while (request.getTries() < 3) {
 
             try {
 
                 // get best instance (one with the lowest instructions)
-                InstanceState bestInstance = state.getInstance();
+                bestInstance = state.getInstance();
                 bestInstance.newRequest(request);
 
                 // Create a connection to the target URL
@@ -100,6 +101,7 @@ public class LBSimulationHandler implements HttpHandler {
                 int responseCode = connection.getResponseCode();
                 if (responseCode != 200) {
                     System.out.println("[LB-simulation] Instance failed to deliver result (status code != 200), going to try again...");
+                    bestInstance.finishRequest(request.getId());
                     continue;
                 }
 
@@ -126,6 +128,9 @@ public class LBSimulationHandler implements HttpHandler {
                 connection.disconnect();
             } catch (IOException e) {
                 System.out.println("[LB-simulation] Instance failed to deliver result (exception thrown), going to try again...");
+                if (bestInstance != null) {
+                    bestInstance.finishRequest(request.getId());
+                }
             }
         }
 
