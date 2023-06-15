@@ -19,6 +19,8 @@
 		<module>javassist-tools</module>
 		<module>webserver</module>
 		<module>database</module>
+		<module>load-balancer</module>
+		
 	</modules>
 
 </project>
