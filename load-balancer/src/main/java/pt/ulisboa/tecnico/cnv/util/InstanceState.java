@@ -4,14 +4,16 @@ import pt.ulisboa.tecnico.cnv.requests.Request;
 
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
 
 public class InstanceState {
 
     private String id;
     private String url;
-    private Double cpuAvg = null;
+    private Double cpuAvg = 25.0;
     private long executingInstructions;
     private ConcurrentHashMap<String, Request> requests;
+    private LocalDateTime startingTime;
 
 
     public InstanceState(String id, String url) {
@@ -19,6 +21,7 @@ public class InstanceState {
         this.url = url;
         this.executingInstructions = 0;
         this.requests = new ConcurrentHashMap<>();
+        this.startingTime = LocalDateTime.now();
     }
 
     public void newRequest(Request request) {
@@ -46,6 +49,10 @@ public class InstanceState {
 
     public String getId() {
         return id;
+    }
+
+    public LocalDateTime getStartingTime() {
+        return startingTime;
     }
 
     public void updateCPUAvg(Double newAvg) {

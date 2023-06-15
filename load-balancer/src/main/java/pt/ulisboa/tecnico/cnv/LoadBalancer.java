@@ -5,7 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
 public class LoadBalancer {
-    private static final int port = 80;
+    private static final int port = 8000;
 
     public static void main(String[] args) throws Exception {
         SystemState state = new SystemState();

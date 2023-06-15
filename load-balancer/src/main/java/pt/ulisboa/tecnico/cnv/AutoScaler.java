@@ -3,6 +3,7 @@ package pt.ulisboa.tecnico.cnv;
 
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
+import java.time.LocalDateTime;
 
 import java.util.*;
 
@@ -44,19 +45,21 @@ public class AutoScaler extends TimerTask {
             sum += instance.getCPUAvg();
         }
 
-        double avg = sum/count;
+        //count + _state.getPending() TAKES INTO ACCOUNT INSTANCES STARTING UP 
+        //PREVENTS KEEPING LAUNCHING INSTANCE WHEN PREVIOUS ONES ARE STILL LAUNCHING
+        double avg = sum/(count + _state.getPendingNr());
         //Two levels of overload and underload
         // If over/underloaded increase/decrease by 5%
         // If extremely over/underloade increase/decrease by 10%
-        // Minimum of 1 instance always runnung
+        // Minimum of 1 instance always running
         if (avg >= 80 && avg < 90) {
-            launchInstances((int) Math.ceil(count * 0.05));
-        } else if (avg > 90) {
             launchInstances((int) Math.ceil(count * 0.1));
+        } else if (avg > 90) {
+            launchInstances((int) Math.ceil(count * 0.15));
         } else if ( avg <= 25 && avg > 15) {
-            terminateInstances(currentState, (int) Math.ceil(count * 0.05));
+            terminateInstances(currentState, (int) Math.ceil(count * 0.1));
         } else if (avg <= 15 && count > 1) {
-            terminateInstances(currentState, (int) Math.ceil(count*0.1));
+            terminateInstances(currentState, (int) Math.ceil(count*0.15));
         }
     }
 
@@ -74,9 +77,17 @@ public class AutoScaler extends TimerTask {
             }
           });
 
-        //Terminate k instances with lowest avg CPU usage
-        for (int i = 0; i < nrInsTerminate; i++) {
-            _state.terminateInstance(instances.get(i).getId());
+          //Terminate k instances with lowest avg CPU usage
+          for (int i = 0; i < nrInsTerminate; i++) {
+            InstanceState inst = instances.get(i);
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime minutesAgo = now.minusMinutes(5);
+            
+            //Instance has to have been running for a minimum amount of time 
+            // Is this good policy??
+            if( minutesAgo.isAfter(inst.getStartingTime()) ) {
+                _state.terminateInstance(inst.getId());
+            }
         }
     }
 }

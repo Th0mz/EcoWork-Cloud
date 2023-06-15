@@ -7,6 +7,8 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 
+import pt.ulisboa.tecnico.cnv.database.MetricsDB;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
@@ -22,6 +24,7 @@ public class SystemState {
     public static int CHECK_PENDING = 5;
     public static int CHECK_RUNNING = 5;
     public static int REMOVE_CHECK = 30;
+    public static int DB_UPDATE = 60;
 
     public static String INSTANCE_TYPE = "t2.micro";
     public static String AWS_REGION = System.getenv("AWS_DEFAULT_REGION");
@@ -45,6 +48,13 @@ public class SystemState {
     protected ConcurrentHashMap<String, InstanceState> runningInstances = new ConcurrentHashMap<>();
 
     private Random generator = new Random();
+
+
+    //Metrics Data : 
+    //these are actual hashmaps
+    Map<Integer, Double> foxRabbitMetrics;
+    Map<String, List<Double>> compressionMetrics;
+    List<Double> insectWarMetrics;
 
     public SystemState() {
 
@@ -85,9 +95,13 @@ public class SystemState {
         System.out.println("Launching three instances with image id " + AMI_ID);
         this.launchInstance();
         this.launchInstance();
+        this.launchInstance();
 
         RunningCheckTask runningCheckTask = new RunningCheckTask();
         timer.scheduleAtFixedRate(runningCheckTask, 35000, CHECK_RUNNING * 1000);
+
+        RetrieveDBMetricsTask metricsTask = new RetrieveDBMetricsTask();
+        timer.scheduleAtFixedRate(metricsTask, 10000, DB_UPDATE * 1000);
 
     }
 
@@ -154,6 +168,18 @@ public class SystemState {
     public ArrayList<InstanceState> getRunningInstances() {
         //Does this need locks?
         return new ArrayList<>(this.runningInstances.values());
+    }
+
+    public int getPendingNr(){
+        return pendingInstances.size();
+    }
+
+    public void udapteDBMetrics() {
+        System.out.println("[State]: Updating DB Metrics...");
+        this.foxRabbitMetrics = MetricsDB.getFoxRabbitMetrics();
+        this.insectWarMetrics = MetricsDB.getInsectWarMetrics();
+        this.compressionMetrics = MetricsDB.getCompressMetrics();
+
     }
 
     public void updateCPUMetrics() {
@@ -293,6 +319,7 @@ public class SystemState {
         }
     }
 
+
     private class WaitForWebserverTask extends TimerTask {
         private InstanceState instanceState;
 
@@ -324,6 +351,13 @@ public class SystemState {
         @Override
         public void run() {
             checkRunningInstances();
+        }
+    }
+
+    private class RetrieveDBMetricsTask extends TimerTask {
+        @Override
+        public void run() {
+            udapteDBMetrics();
         }
     }
 }
