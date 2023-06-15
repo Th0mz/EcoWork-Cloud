@@ -49,7 +49,6 @@ public class SystemState {
 
     private Random generator = new Random();
 
-
     //Metrics Data : 
     //these are actual hashmaps
     private HashMap<Integer, Double> foxRabbitMetrics;
@@ -111,11 +110,20 @@ public class SystemState {
 
     }
 
-    public String getInstance() {
-        ArrayList<InstanceState> instances = new ArrayList<>(this.runningInstances.values());
-        int index = generator.nextInt(instances.size());
+    public InstanceState getInstance() {
 
-        return instances.get(index).getUrl();
+        if (this.runningInstances.size() == 0) {
+            return null;
+        }
+
+        InstanceState bestInstance = null;
+        for (InstanceState instance : this.runningInstances.values()) {
+            if (bestInstance == null || bestInstance.getExecutingInstructions() > instance.getExecutingInstructions()) {
+                bestInstance = instance;
+            }
+        }
+
+        return bestInstance;
     }
 
     public void getSecurityGroupID() {
@@ -180,7 +188,7 @@ public class SystemState {
         return pendingInstances.size();
     }
 
-    public void udapteDBMetrics() {
+    public void updateDBMetrics() {
         System.out.println("[State]: Updating DB Metrics...");
         this.foxRabbitMetrics = MetricsDB.getFoxRabbitMetrics();
         this.insectWarMetrics = MetricsDB.getInsectWarMetrics();
@@ -364,7 +372,7 @@ public class SystemState {
     private class RetrieveDBMetricsTask extends TimerTask {
         @Override
         public void run() {
-            udapteDBMetrics();
+            updateDBMetrics();
         }
     }
 }

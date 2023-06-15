@@ -15,6 +15,7 @@ public class Request {
         this.id = UUID.randomUUID().toString();
         this.cost = cost;
         this.client = client;
+        this.tries = 0;
     }
 
     public String getId() {

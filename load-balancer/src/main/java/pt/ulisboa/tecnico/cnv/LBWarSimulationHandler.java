@@ -3,6 +3,7 @@ package pt.ulisboa.tecnico.cnv;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.InsectWarsRequest;
+import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
 import java.io.IOException;
@@ -51,8 +52,12 @@ public class LBWarSimulationHandler implements HttpHandler {
         long army1 = Long.parseLong(parameters.get("army1"));
         long army2 = Long.parseLong(parameters.get("army2"));
 
+        System.out.println("Calculating cost...");
         Long cost = calculateCost(max, army1, army2).longValue();
+        System.out.println("cost = " + cost);
+
         InsectWarsRequest request = new InsectWarsRequest(parameters, cost, exchange);
+        System.out.println("sending request");
         sendRequest(request);
 
     }
@@ -75,66 +80,77 @@ public class LBWarSimulationHandler implements HttpHandler {
             if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
             value = value * state.getPerArmyRatio().get(index) * (army2/army1);
             return value;
-        } 
-
-        //value = value * (perArmySize * smallerArmy)
-        //value = value + perRound * smallerArmy * round;
-        //value = value * perArmyRatio.get(army1/army2 * ) * (armyRatio); //perArmyRatio is an array with the ratios for the 100 0.1ratio steps
-        //return value;
-        //return 1000L;
+        }
     }
 
     public void sendRequest(InsectWarsRequest request) {
-        try {
+        Map<String, String> parameters = request.getParameters();
+        HttpExchange exchange = request.getClient();
 
-            Map<String, String> parameters = request.getParameters();
-            HttpExchange exchange = request.getClient();
+        while (request.getTries() < 3) {
+            try {
+
+                // get best instance (one with the lowest instructions)
+                InstanceState bestInstance = state.getInstance();
+                bestInstance.newRequest(request);
+
+                // Create a connection to the target URL
+                URL url = new URL(buildRequestURL(bestInstance.getUrl(), parameters));
+                System.out.println("[LB-war] Sending request to " + url + "for the " + request.getTries() + "x");
+                System.out.println(" > Request cost : " + request.getCost());
+                System.out.println(" > Current Instance Workload : " + bestInstance.getExecutingInstructions());
+
+                /* Create connection to webserver
+                 *  ============================== */
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                // Set request method and headers from the client's request
+                connection.setRequestMethod(exchange.getRequestMethod());
+                connection.setDoOutput(true);
+                exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
+
+                // Forward the client's request body, if present
+                byte[] requestBody = exchange.getRequestBody().readAllBytes();
+                if (requestBody.length > 0) {
+                    connection.getOutputStream().write(requestBody);
+                }
 
 
-            // TODO : choose instance
-            // TODO : add this request to its request list
-            // Create a connection to the target URL
-            URL url = new URL(buildRequestURL(state.getInstance(), parameters));
-            System.out.println("[LB-war] Sending request to " + url);
+                /*  Process received response from webserver and send it to the client
+                 *  ================================================================== */
+                int responseCode = connection.getResponseCode();
+                if (responseCode != 200) {
+                    continue;
+                }
 
-            /* Create connection to webserver
-             *  ============================== */
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                boolean finished = bestInstance.finishRequest(request.getId());
+                if (!finished) {
+                    System.out.println("[LB-war] Instance failed to deliver result (status code != 200), going to try again...");
+                    System.out.println("Error : Request " + request.getId() + "tryed to finish at instance " + bestInstance.getId() + "but wasn't found");
+                }
 
-            // Set request method and headers from the client's request
-            connection.setRequestMethod(exchange.getRequestMethod());
-            connection.setDoOutput(true);
-            exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
 
-            // Forward the client's request body, if present
-            byte[] requestBody = exchange.getRequestBody().readAllBytes();
-            if (requestBody.length > 0) {
-                connection.getOutputStream().write(requestBody);
+                InputStream responseStream = connection.getInputStream();
+                byte[] responseBody = responseStream.readAllBytes();
+
+                // Send the target server's response body back to the client
+                exchange.sendResponseHeaders(responseCode, responseBody.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(responseBody);
+                outputStream.close();
+
+                // Close connections
+                responseStream.close();
+                connection.disconnect();
+
+                // successfully handled request
+                return;
+            } catch (IOException e) {
+                System.out.println("[LB-war] Instance failed to deliver result (exception thrown), going to try again...");
             }
-
-
-            /*  Process received response from webserver and send it to the client
-             *  ================================================================== */
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                // TODO : instance failed must send to other instance
-            }
-
-            InputStream responseStream = connection.getInputStream();
-            byte[] responseBody = responseStream.readAllBytes();
-
-            // Send the target server's response body back to the client
-            exchange.sendResponseHeaders(responseCode, responseBody.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(responseBody);
-            outputStream.close();
-
-            // Close connections
-            responseStream.close();
-            connection.disconnect();
-        } catch (IOException e) {
-            // TODO
         }
+
+        System.out.println("[LB-war] Tried to send request three times but none when through");
     }
 
 

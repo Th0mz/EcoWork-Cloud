@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.CompressRequest;
 import pt.ulisboa.tecnico.cnv.requests.FoxAndRabbitsRequest;
+import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
 import javax.imageio.ImageIO;
@@ -71,54 +72,68 @@ public class LBCompressImageHandler implements HttpHandler {
     }
 
     public void sendRequest(CompressRequest request) {
-        try {
-            byte[] requestBody = request.getResponseBody();
-            HttpExchange exchange = request.getClient();
+        byte[] requestBody = request.getResponseBody();
+        HttpExchange exchange = request.getClient();
 
-            // TODO : choose instance
-            // TODO : add this request to its request list
+        while (request.getTries() < 3) {
+            try {
 
-            // Create a connection to the target URL
-            URL url = new URL(state.getInstance() + path);
-            System.out.println("[LB-compress] Sending request to " + url);
+                // get best instance (one with the lowest instructions)
+                InstanceState bestInstance = state.getInstance();
+                bestInstance.newRequest(request);
 
-            /* Create connection to webserver
-             *  ============================== */
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                // Create a connection to the target URL
+                URL url = new URL(bestInstance.getUrl() + path);
+                System.out.println("[LB-compress] Sending request to " + url + "for the " + request.getTries() + "x");
+                System.out.println(" > Request cost : " + request.getCost());
+                System.out.println(" > Current Instance Workload : " + bestInstance.getExecutingInstructions());
 
-            // Set request method and headers from the client's request
-            connection.setRequestMethod(exchange.getRequestMethod());
-            connection.setDoOutput(true);
-            exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
 
-            // Forward the client's request body, if present
-            if (requestBody.length > 0) {
-                connection.getOutputStream().write(requestBody);
+                /* Create connection to webserver
+                 *  ============================== */
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                // Set request method and headers from the client's request
+                connection.setRequestMethod(exchange.getRequestMethod());
+                connection.setDoOutput(true);
+                exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
+
+                // Forward the client's request body, if present
+                if (requestBody.length > 0) {
+                    connection.getOutputStream().write(requestBody);
+                }
+
+                /*  Process received response from webserver and send it to the client
+                 *  ================================================================== */
+                int responseCode = connection.getResponseCode();
+                if (responseCode != 200) {
+                    System.out.println("[LB-compress] Instance failed to deliver result (status code != 200), going to try again...");
+                    continue;
+                }
+
+                boolean finished = bestInstance.finishRequest(request.getId());
+                if (!finished) {
+                    System.out.println("Error : Request " + request.getId() + "tryed to finish at instance " + bestInstance.getId() + "but wasn't found");
+                }
+
+                InputStream responseStream = connection.getInputStream();
+                byte[] responseBody = responseStream.readAllBytes();
+
+                // Send the target server's response body back to the client
+                exchange.sendResponseHeaders(responseCode, responseBody.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(responseBody);
+                outputStream.close();
+
+                // Close connections
+                responseStream.close();
+                connection.disconnect();
+            } catch (IOException e) {
+                System.out.println("[LB-compress] Instance failed to deliver result (exception thrown), going to try again...");
             }
-
-            /*  Process received response from webserver and send it to the client
-             *  ================================================================== */
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                // TODO : instance failed must send to other instance
-            }
-
-            InputStream responseStream = connection.getInputStream();
-            byte[] responseBody = responseStream.readAllBytes();
-
-            // Send the target server's response body back to the client
-            exchange.sendResponseHeaders(responseCode, responseBody.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(responseBody);
-            outputStream.close();
-
-            // Close connections
-            responseStream.close();
-            connection.disconnect();
-        } catch (IOException e) {
-            // TODO
-            // TODO : instance failed must send to other instance?
         }
+
+        System.out.println("[LB-compress] Tried to send request three times but none when through");
     }
 
     public Map<String, String> queryToMap(String query) {

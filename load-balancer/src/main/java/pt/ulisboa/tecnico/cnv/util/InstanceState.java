@@ -34,13 +34,18 @@ public class InstanceState {
         }
     }
 
-    public void finishRequest(String requestID) {
+    public boolean finishRequest(String requestID) {
+        boolean result = false;
+
         synchronized (this) {
             Request request = requests.remove(requestID);
             if (request != null) {
                 executingInstructions -= request.getCost();
+                result = true;
             }
         }
+
+        return result;
     }
 
     public boolean hasRequests() {

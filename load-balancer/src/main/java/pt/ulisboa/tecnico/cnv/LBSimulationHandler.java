@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.FoxAndRabbitsRequest;
 import pt.ulisboa.tecnico.cnv.requests.InsectWarsRequest;
+import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
 import java.io.IOException;
@@ -62,59 +63,73 @@ public class LBSimulationHandler implements HttpHandler {
     }
 
     public void sendRequest(FoxAndRabbitsRequest request) {
-        try {
-            Map<String, String> parameters = request.getParameters();
-            HttpExchange exchange = request.getClient();
+        Map<String, String> parameters = request.getParameters();
+        HttpExchange exchange = request.getClient();
 
-            // TODO : choose instance
-            // TODO : add this request to its request list
+        while (request.getTries() < 3) {
 
-            // Create a connection to the target URL
-            URL url = new URL(buildRequestURL(state.getInstance(), parameters));
-            System.out.println("[LB-simulation] Sending request to " + url);
+            try {
 
-            /* Create connection to webserver
-             *  ============================== */
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                // get best instance (one with the lowest instructions)
+                InstanceState bestInstance = state.getInstance();
+                bestInstance.newRequest(request);
 
-            // Set request method and headers from the client's request
-            connection.setRequestMethod(exchange.getRequestMethod());
-            connection.setDoOutput(true);
-            exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
+                // Create a connection to the target URL
+                URL url = new URL(buildRequestURL(bestInstance.getUrl(), parameters));
+                System.out.println("[LB-simulation] Sending request to " + url + "for the " + request.getTries() + "x");
+                System.out.println(" > Request cost : " + request.getCost());
+                System.out.println(" > Current Instance Workload : " + bestInstance.getExecutingInstructions());
 
-            // Forward the client's request body, if present
-            byte[] requestBody = exchange.getRequestBody().readAllBytes();
-            if (requestBody.length > 0) {
-                connection.getOutputStream().write(requestBody);
+                /* Create connection to webserver
+                 *  ============================== */
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                // Set request method and headers from the client's request
+                connection.setRequestMethod(exchange.getRequestMethod());
+                connection.setDoOutput(true);
+                exchange.getRequestHeaders().forEach((key, value) -> connection.setRequestProperty(key, value.get(0)));
+
+                // Forward the client's request body, if present
+                byte[] requestBody = exchange.getRequestBody().readAllBytes();
+                if (requestBody.length > 0) {
+                    connection.getOutputStream().write(requestBody);
+                }
+
+                /*  Process received response from webserver and send it to the client
+                 *  ================================================================== */
+                int responseCode = connection.getResponseCode();
+                if (responseCode != 200) {
+                    System.out.println("[LB-simulation] Instance failed to deliver result (status code != 200), going to try again...");
+                    continue;
+                }
+
+                boolean finished = bestInstance.finishRequest(request.getId());
+                if (!finished) {
+                    System.out.println("Error : Request " + request.getId() + "tryed to finish at instance " + bestInstance.getId() + "but wasn't found");
+                }
+
+                InputStream responseStream = connection.getInputStream();
+                byte[] responseBody = responseStream.readAllBytes();
+
+                // DEBUG : System.out.println("RESPONSE");
+                // DEBUG : System.out.println(new String(responseBody, StandardCharsets.UTF_8));
+
+
+                // Send the target server's response body back to the client
+                exchange.sendResponseHeaders(responseCode, responseBody.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(responseBody);
+                outputStream.close();
+
+                // Close connections
+                responseStream.close();
+                connection.disconnect();
+            } catch (IOException e) {
+                System.out.println("[LB-simulation] Instance failed to deliver result (exception thrown), going to try again...");
             }
-
-            /*  Process received response from webserver and send it to the client
-             *  ================================================================== */
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                // TODO : instance failed must send to other instance
-            }
-
-            InputStream responseStream = connection.getInputStream();
-            byte[] responseBody = responseStream.readAllBytes();
-
-            // DEBUG : System.out.println("RESPONSE");
-            // DEBUG : System.out.println(new String(responseBody, StandardCharsets.UTF_8));
-
-
-            // Send the target server's response body back to the client
-            exchange.sendResponseHeaders(responseCode, responseBody.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(responseBody);
-            outputStream.close();
-
-            // Close connections
-            responseStream.close();
-            connection.disconnect();
-        } catch (IOException e) {
-            // TODO
-            // TODO : instance failed must send to other instance
         }
+
+        System.out.println("[LB-simulation] Tried to send request three times but none when through");
     }
 
     public Map<String, String> queryToMap(String query) {
