@@ -80,11 +80,12 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
         //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
         //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
-        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 2, 4, 14));
-        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 3, 5, 16));
-        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 4, 6, 18));
-        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 5, 7, 20));
-        //MetricsDB.saveMetric(new CompressObj("jpg", "0.2", 6, 8, 22));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 2, 4, 14));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 3, 5, 16));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 4, 6, 18));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 5, 7, 20));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 6, 8, 22));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 7, 9, 24));
         //MetricsDB.saveMetric(new InsectWarObj(1, 5, 5, 10000));
         //MetricsDB.saveMetric(new InsectWarObj(2, 5, 5, 1510000));
 
@@ -95,7 +96,7 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new InsectWarObj(4, 2, 2, 1804000));
 
 
-        //updateAllMetrics();
+        updateAllMetrics();
 
 
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 5000));
@@ -431,9 +432,10 @@ public class MetricsDB {
         }
 
         LinearRegression regression = new LinearRegression(x, y);
+        regression.calculateRegression();
 
-        Double newSlope = regression.slope();
-        Double newOrigin = regression.intercept();
+        Double newSlope = regression.getSlope();
+        Double newOrigin = regression.getOrigin();
         System.out.println("NEW SLOPE: " + newSlope);
         System.out.println("NEW ORIGIN: " + newOrigin);
 
@@ -497,9 +499,10 @@ public class MetricsDB {
         }
 
         LinearRegression regression = new LinearRegression(x, y);
+        regression.calculateRegression();
 
-        Double newSlope = regression.slope();
-        Double newOrigin = regression.intercept();
+        Double newSlope = regression.getSlope();
+        Double newOrigin = regression.getOrigin();
 
         Integer numberMeasures = nr_previous.get("jpg")+jpgImages.size();
         Double finalSlope = (newSlope * jpgImages.size() + previousSlope.get("jpg") * nr_previous.get("jpg")) / numberMeasures;
@@ -563,9 +566,10 @@ public class MetricsDB {
         }
 
         LinearRegression regression = new LinearRegression(x, y);
+        regression.calculateRegression();
 
-        Double newSlope = regression.slope();
-        Double newOrigin = regression.intercept();
+        Double newSlope = regression.getSlope();
+        Double newOrigin = regression.getOrigin();
 
         Integer numberMeasures = nr_previous.get("png")+pngImages.size();
         Double finalSlope = (newSlope * pngImages.size() + previousSlope.get("png") * nr_previous.get("png")) / numberMeasures;
