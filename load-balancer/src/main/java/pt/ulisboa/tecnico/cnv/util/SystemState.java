@@ -52,9 +52,15 @@ public class SystemState {
 
     //Metrics Data : 
     //these are actual hashmaps
-    Map<Integer, Double> foxRabbitMetrics;
-    Map<String, List<Double>> compressionMetrics;
-    List<Double> insectWarMetrics;
+    private HashMap<Integer, Double> foxRabbitMetrics;
+    private HashMap<String, List<Double>> compressionMetrics;
+    private ArrayList<Double> insectWarMetrics;
+    private ArrayList<Double> perArmyRatio;
+
+    public HashMap<String, List<Double>> getCompressionMetrics() {return compressionMetrics;}
+    public HashMap<Integer, Double> getFoxRabbitMetrics() {return foxRabbitMetrics;}
+    public ArrayList<Double> getInsectWarMetrics() {return insectWarMetrics;}
+    public ArrayList<Double> getPerArmyRatio() {return perArmyRatio;}
 
     public SystemState() {
 
@@ -178,6 +184,7 @@ public class SystemState {
         System.out.println("[State]: Updating DB Metrics...");
         this.foxRabbitMetrics = MetricsDB.getFoxRabbitMetrics();
         this.insectWarMetrics = MetricsDB.getInsectWarMetrics();
+        this.perArmyRatio = MetricsDB.getPerArmyRatio();
         this.compressionMetrics = MetricsDB.getCompressMetrics();
 
     }

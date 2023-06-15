@@ -64,6 +64,16 @@ public class MetricsDB {
     private static Map<Integer,  Map<Integer, InsectWarObj>> samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
     private static List<InsectWarObj> roundOneEqualArmy = new ArrayList<InsectWarObj>();
     private static Double roundOneArmyOneInstr = 1000.0;
+    private static ArrayList<Double> perArmyRatio = new ArrayList<Double>(
+            Arrays.asList(0.954545, 0.960315, 0.965033, 0.968942, 0.97222, 0.974998, 0.977374, 0.979422, 0.981202, 0.982757, 
+            0.984126, 0.985336, 0.986412, 0.987373, 0.988234, 0.98901, 0.989711, 0.990347, 0.990925, 0.991452, 
+            0.991935, 0.992377, 0.992784, 0.993159, 0.993506, 0.993827, 0.994124, 0.9944, 0.994658, 0.994897, 
+            0.995121, 0.995331, 0.995527, 0.995711, 0.995884, 0.996047, 0.9962, 0.996345, 0.996481, 0.99661, 
+            0.996732, 0.996847, 0.996956, 0.99706, 0.997159, 0.997252, 0.997342, 0.997426, 0.997507, 0.997584, 
+            0.997658, 0.997728, 0.997795, 0.997859, 0.997921, 0.99798, 0.998036, 0.99809, 0.998142, 0.998191, 
+            0.998239, 0.998285, 0.998329, 0.998372, 0.998452, 0.99849, 0.998526, 0.998561, 0.998595, 0.998628, 
+            0.99866, 0.99869, 0.99872, 0.998748, 0.998776, 0.998803, 0.998828, 0.998853, 0.998878, 0.998901, 
+            0.998924, 0.998946, 0.998967, 0.998988, 0.999008, 0.999027, 0.999046, 0.999065, 0.999082));
     
 
     public MetricsDB() {
@@ -651,8 +661,8 @@ public class MetricsDB {
  // ==========================                 ==========================
  // =====================================================================
 
-    public static Map<Integer, Double> getFoxRabbitMetrics() {
-        Map<Integer,Double> metricsPerWorld = new HashMap<Integer, Double>();
+    public static HashMap<Integer, Double> getFoxRabbitMetrics() {
+        HashMap<Integer,Double> metricsPerWorld = new HashMap<Integer, Double>();
         
         ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
@@ -671,8 +681,8 @@ public class MetricsDB {
     
 
 
-    public static Map<String, List<Double>> getCompressMetrics() {
-        Map<String,List<Double>> metricsPerFormat = new HashMap<String, List<Double>>();
+    public static HashMap<String, List<Double>> getCompressMetrics() {
+        HashMap<String,List<Double>> metricsPerFormat = new HashMap<String, List<Double>>();
         
         ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
@@ -692,11 +702,11 @@ public class MetricsDB {
         return metricsPerFormat;
     }
 
-    public static List<Double> getInsectWarMetrics() {
+    public static ArrayList<Double> getInsectWarMetrics() {
 
         //Index 0 - PerRoundArmyEqual
         //Index 1 - PerArmyRound1
-        List<Double> metrics = new ArrayList<Double>();
+        ArrayList<Double> metrics = new ArrayList<Double>();
 
         ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
@@ -713,6 +723,10 @@ public class MetricsDB {
         }
 
         return metrics;
+    }
+
+    public static ArrayList<Double> getPerArmyRatio() {
+        return perArmyRatio;
     }
 
 

@@ -56,12 +56,18 @@ public class LBCompressImageHandler implements HttpHandler {
         ByteArrayInputStream bais = new ByteArrayInputStream(decoded);
         BufferedImage bi = ImageIO.read(bais);
 
-        // bi.getHeight()
+        int height = bi.getHeight();
 
-        // TODO : estimate cost
-        long cost = 1000L;
+        Long cost = calculateCost(targetFormat, height, height*height).longValue();
         CompressRequest request = new CompressRequest(requestBody, cost, exchange);
         sendRequest(request);
+    }
+
+    public Double calculateCost(String format, int height, int pixels) {
+        double slope = state.getCompressionMetrics().get(format).get(0);
+        double origin = state.getCompressionMetrics().get(format).get(1);
+        if(format.equals("bmp")) return slope*height + origin;
+        return slope*pixels+origin;
     }
 
     public void sendRequest(CompressRequest request) {

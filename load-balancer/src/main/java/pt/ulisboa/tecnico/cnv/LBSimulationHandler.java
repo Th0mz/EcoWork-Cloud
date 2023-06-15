@@ -50,9 +50,15 @@ public class LBSimulationHandler implements HttpHandler {
         int n_scenario = Integer.parseInt(parameters.get("scenario"));
 
         // TODO : estimate cost
-        long cost = 1000L;
+        Long cost = calculateCost(world, n_generations).longValue();
         FoxAndRabbitsRequest request = new FoxAndRabbitsRequest(parameters, cost, exchange);
         sendRequest(request);
+    }
+
+    public Double calculateCost(int world, int gen) {
+        //return worldWeights.get(world) * gen; //worldWeights contains instr/gener for each world
+        //return 1000L;
+        return state.getFoxRabbitMetrics().get(world) * gen;
     }
 
     public void sendRequest(FoxAndRabbitsRequest request) {

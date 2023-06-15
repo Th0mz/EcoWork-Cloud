@@ -14,6 +14,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
 
 
 public class LBWarSimulationHandler implements HttpHandler {
@@ -50,11 +51,37 @@ public class LBWarSimulationHandler implements HttpHandler {
         long army1 = Long.parseLong(parameters.get("army1"));
         long army2 = Long.parseLong(parameters.get("army2"));
 
-        // TODO : estimate function cost
-        long cost = 1000L;
+        Long cost = calculateCost(max, army1, army2).longValue();
         InsectWarsRequest request = new InsectWarsRequest(parameters, cost, exchange);
         sendRequest(request);
 
+    }
+
+    public Double calculateCost(long round, long army1, long army2) {
+        Double value = 900502.0; //(which is (1,1,1)) tested locally
+        ArrayList<Double> metrics = state.getInsectWarMetrics(); //index0- perRound; index1-perArmyRound1
+        if (army2 <= army1) {
+            value = value * (metrics.get(1)*army2);
+            value = value + metrics.get(0) * army2 * round;
+            int index = (int) (((army1*1.0/army2) - 1) / 0.1);
+            if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+            value = value * state.getPerArmyRatio().get(index) * (army1/army2);
+            return value;
+        } 
+        else { //army1 < army2
+            value = value * (metrics.get(1)*army1);
+            value = value + metrics.get(0) * army1 * round;
+            int index = (int) (((army2*1.0/army1) - 1) / 0.1);
+            if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+            value = value * state.getPerArmyRatio().get(index) * (army2/army1);
+            return value;
+        } 
+
+        //value = value * (perArmySize * smallerArmy)
+        //value = value + perRound * smallerArmy * round;
+        //value = value * perArmyRatio.get(army1/army2 * ) * (armyRatio); //perArmyRatio is an array with the ratios for the 100 0.1ratio steps
+        //return value;
+        //return 1000L;
     }
 
     public void sendRequest(InsectWarsRequest request) {
