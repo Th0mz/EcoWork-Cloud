@@ -63,6 +63,7 @@ public class MetricsDB {
     //first index for army size, second index for round number
     private static Map<Integer,  Map<Integer, InsectWarObj>> samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
     private static List<InsectWarObj> roundOneEqualArmy = new ArrayList<InsectWarObj>();
+    private static List<InsectWarObj> differentArmySizeList = new ArrayList<InsectWarObj>();
     private static Double roundOneArmyOneInstr = 1000.0;
     private static ArrayList<Double> perArmyRatio = new ArrayList<Double>(
             Arrays.asList(0.954545, 0.960315, 0.965033, 0.968942, 0.97222, 0.974998, 0.977374, 0.979422, 0.981202, 0.982757, 
@@ -74,6 +75,9 @@ public class MetricsDB {
             0.998239, 0.998285, 0.998329, 0.998372, 0.998452, 0.99849, 0.998526, 0.998561, 0.998595, 0.998628, 
             0.99866, 0.99869, 0.99872, 0.998748, 0.998776, 0.998803, 0.998828, 0.998853, 0.998878, 0.998901, 
             0.998924, 0.998946, 0.998967, 0.998988, 0.999008, 0.999027, 0.999046, 0.999065, 0.999082));
+
+    private static Double storedLastPerRound = 300000.0;
+    private static Double storedLastPerArmy = 1.0;
     
 
     public MetricsDB() {
@@ -90,15 +94,15 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
         //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
         //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 1156, 1336336, 865569L));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.3", 1156, 1336336, 866164L));
-        MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 1156, 1336336, 875353L));
-        MetricsDB.saveMetric(new CompressObj("png", "0.2", 1156, 1336336, 865569L));
-        MetricsDB.saveMetric(new CompressObj("png", "0.3", 1156, 1336336, 866164L));
-        MetricsDB.saveMetric(new CompressObj("png", "0.4", 1156, 1336336, 875353L));
-        MetricsDB.saveMetric(new CompressObj("jpeg", "0.2", 1156, 1336336, 865569L));
-        MetricsDB.saveMetric(new CompressObj("jpeg", "0.3", 1156, 1336336, 866164L));
-        MetricsDB.saveMetric(new CompressObj("jpeg", "0.4", 1156, 1336336, 875353L));
+        // MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 1156, 1336336, 865569L));
+        // MetricsDB.saveMetric(new CompressObj("bmp", "0.3", 1157, 1336336, 866164L));
+        // MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 1158, 1336336, 875353L));
+        // MetricsDB.saveMetric(new CompressObj("png", "0.2", 1156, 1336336, 865569L));
+        // MetricsDB.saveMetric(new CompressObj("png", "0.3", 1157, 1336336, 866164L));
+        // MetricsDB.saveMetric(new CompressObj("png", "0.4", 1158, 1336336, 875353L));
+        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.2", 1156, 1336336, 865569L));
+        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.3", 1157, 1336336, 866164L));
+        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.4", 1158, 1336336, 875353L));
         
         //MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
         //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
@@ -114,6 +118,9 @@ public class MetricsDB {
 
 
         updateAllMetrics();
+        getCompressMetrics();
+        getFoxRabbitMetrics();
+        getInsectWarMetrics();
 
 
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 5000));
@@ -157,6 +164,19 @@ public class MetricsDB {
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
             TableDescription tableDescription = client.describeTable(describeTableRequest).getTable();
             System.out.println("Table Description: " + tableDescription);
+
+            //Update initial metrics to the database
+            client.putItem(CompressObj.generateRequest(tableName, "jpeg", 0.02, 14000.0, 1));
+            client.putItem(CompressObj.generateRequest(tableName, "png", 0.8, 28000.0, 1));
+            client.putItem(CompressObj.generateRequest(tableName, "bmp", 180.0, 10000.0, 1));
+
+            client.putItem(InsectWarObj.generateRequest(tableName, 1, 1.0, 
+                1, 300000.0));
+
+            client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 1, 9000.0));
+            client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 2, 30000.0));
+            client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 3, 110000.0));
+            client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 4, 250000.0));
 
             objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
             objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
@@ -233,6 +253,8 @@ public class MetricsDB {
                 if(objC.getMax() == 1) {
                     roundOneEqualArmy.add(objC);
                 }
+            } else {
+                differentArmySizeList.add(objC);
             }
 
         } else if(obj instanceof CompressObj) {
@@ -391,6 +413,8 @@ public class MetricsDB {
             System.out.println(String.format("[INSECTWAR - DB&LOCAL **] nr_round1perarmysize-%d nr_measures_roundone-%d", nr_round1perarmysize, nr_measures_roundone));
         }
     
+        storedLastPerArmy = finalPerArmy;
+        storedLastPerRound = finalPerRound;
         System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
         client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
                 nr_finalPerRound, finalPerRound));
@@ -687,19 +711,19 @@ public class MetricsDB {
 
     public static HashMap<Integer, Double> getFoxRabbitMetrics() {
         HashMap<Integer,Double> metricsPerWorld = new HashMap<Integer, Double>();
-        
-        ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
 
         for(int n_world = 1; n_world <= 4; n_world++) {
-            metricsPerWorld.put(n_world, 0.0); 
+            metricsPerWorld.put(n_world, 0.0);
+            ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint + String.valueOf(n_world));
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                int wrld = Integer.parseInt(itemAttributes.get("world").getN());
+                Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
+                System.out.println("FOXES GOT: " + previous_metric);
+                metricsPerWorld.put(wrld, previous_metric);
+            } 
         }
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            int wrld = Integer.parseInt(itemAttributes.get("world").getN());
-            Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
-            metricsPerWorld.put(wrld, previous_metric);
-        }
-
+        
         return metricsPerWorld;
     }
     
@@ -708,20 +732,26 @@ public class MetricsDB {
     public static HashMap<String, List<Double>> getCompressMetrics() {
         HashMap<String,List<Double>> metricsPerFormat = new HashMap<String, List<Double>>();
         
-        ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
-            
         metricsPerFormat.put("bmp", new ArrayList<Double>(List.of(0.0,0.0)));
         metricsPerFormat.put("jpeg", new ArrayList<Double>(List.of(0.0,0.0))); 
         metricsPerFormat.put("png", new ArrayList<Double>(List.of(0.0,0.0))); 
 
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            String format = itemAttributes.get("format").getS();
-            Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
-            Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
-            metricsPerFormat.get(format).add(0, previous_slope);
-            metricsPerFormat.get(format).add(1, previous_origin);
+        List<String> formats = Arrays.asList("bmp", "png", "jpeg");
+
+        for(String f : formats) {
+            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint + f);
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                String format = itemAttributes.get("format").getS();
+                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                System.out.println("COMPRESS GOT format-" + format + " slope-"+ previous_slope + "origin-"+previous_origin);
+
+                metricsPerFormat.get(format).add(0, previous_slope);
+                metricsPerFormat.get(format).add(1, previous_origin);
+            }
         }
+        
 
         return metricsPerFormat;
     }
@@ -732,7 +762,7 @@ public class MetricsDB {
         //Index 1 - PerArmyRound1
         ArrayList<Double> metrics = new ArrayList<Double>();
 
-        ScanResult sr = getItemsForEndpoint(CompressObj.endpoint);
+        ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint);
         List<Map<String,AttributeValue>> listItems = sr.getItems();
 
         //basic default value if there is no metric yet
@@ -742,6 +772,7 @@ public class MetricsDB {
         for(Map<String,AttributeValue> itemAttributes : listItems) {
             Double previous_perround = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
             Double previous_perarmy = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
+            System.out.println("INSECT GOT Previous PerRound-"+ previous_perround + " PerArmy-" + previous_perarmy);
             metrics.add(0, previous_perround);
             metrics.add(1, previous_perarmy);
         }
