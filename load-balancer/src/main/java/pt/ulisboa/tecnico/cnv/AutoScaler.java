@@ -5,7 +5,11 @@ import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 import java.time.LocalDateTime;
 
-import java.util.*;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Collections;
 
 
 public class AutoScaler extends TimerTask {
