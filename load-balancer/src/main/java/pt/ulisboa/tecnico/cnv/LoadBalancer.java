@@ -18,6 +18,8 @@ public class LoadBalancer {
         server.createContext("/simulate", new LBSimulationHandler(state));
         server.createContext("/compressimage", new LBCompressImageHandler(state));
         server.createContext("/insectwar", new LBWarSimulationHandler(state));
+        server.createContext("/test", new RootHandler());
+
 
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();

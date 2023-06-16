@@ -70,7 +70,7 @@ public class SystemState {
         }
 
         try {
-            File imageFile = new File("../scripts/image.id");
+            File imageFile = new File("/home/ec2-user/scripts/image.id");
             Scanner scanner = new Scanner(imageFile);
 
             AMI_ID = scanner.nextLine();
