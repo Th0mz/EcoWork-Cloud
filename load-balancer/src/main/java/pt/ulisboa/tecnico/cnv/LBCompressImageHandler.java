@@ -289,12 +289,12 @@ public class LBCompressImageHandler implements HttpHandler {
             InvokeRequest request = new InvokeRequest().withFunctionName(functionName).withPayload(json);
             System.out.println("[LB]: Invoking Lambda function " + functionName);
             InvokeResult res = awsLambda.invoke(request);
-            if(res.getStatusCode() == 200) {
-                byte[] responseAux = res.getPayload().array();
-                String re = new String(responseAux, 1, responseAux.length - 2);
-                //System.out.println(re);
-                return re;
-            }
+            
+            byte[] responseAux = res.getPayload().array();
+            String re = new String(responseAux, 1, responseAux.length - 2);
+            //System.out.println(re);
+            return re;
+            
         } catch(AWSLambdaException e) {
             System.err.println(e.getMessage());
             System.out.println("[LB]: Lambda execution failed, retry on worker");
