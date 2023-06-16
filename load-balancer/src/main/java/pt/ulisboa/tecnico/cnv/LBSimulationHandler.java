@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.FoxAndRabbitsRequest;
 import pt.ulisboa.tecnico.cnv.requests.InsectWarsRequest;
+import pt.ulisboa.tecnico.cnv.requests.Request;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
@@ -25,14 +26,15 @@ import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.ArrayList;
+import java.util.TimerTask;
 
 public class LBSimulationHandler implements HttpHandler {
 
     private SystemState state;
     private final String path = "/simulate";
-    
-    // TODO - FOR TEST - DELETE FOR FINAL
-    public static int test = 1;
+    private Timer timer = new Timer();
 
     public LBSimulationHandler(SystemState state) {
         this.state = state;
@@ -63,37 +65,98 @@ public class LBSimulationHandler implements HttpHandler {
         int world = Integer.parseInt(parameters.get("world"));
         int n_scenario = Integer.parseInt(parameters.get("scenario"));
 
-        // TODO : estimate cost
+
         Long cost = calculateCost(world, n_generations).longValue();
         FoxAndRabbitsRequest request = new FoxAndRabbitsRequest(parameters, cost, exchange);
+        String whereToExecute = chooseProcessor(request);
+        if (whereToExecute.equals("Worker")) {
 
-        // TODO : decide whether to send to lambda or worker
-        
-        if (test > 0) {
+            System.out.println("sending request");
             sendRequest(request);
-            test--;
-        } else {
+            
+
+        } else if (whereToExecute.equals("Lambda")) {
+
             String functionName = "foxesRabbits-lambda";
             String jsonArgs = String.format("{\"generations\":\"%d\",\"world\":\"%d\",\"scenario\":\"%d\"}",
                     n_generations, world, n_scenario);
 
             AWSCredentialsProvider credentialsProvider = new EnvironmentVariableCredentialsProvider();
             AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
-            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs);
+            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs, request);
             awsLambda.shutdown();
 
-            //JUST FOR TESTING, THEN REFACTOR
-            exchange.sendResponseHeaders(200, response.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(response);
-            outputStream.close();
+            if(response != null){
+                //send response back
+                exchange.sendResponseHeaders(200, response.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(response);
+                outputStream.close();
+
+            }
+
+        } else  if (whereToExecute.equals("Wait")) {
+            System.out.println("[LB]: Request too big while instances launching, waiting ...");
+            timer.schedule(new WaitForWebserverTask(request, state.getPending()), 5000); 
         }
+
     }
 
     public Double calculateCost(int world, int gen) {
         //return worldWeights.get(world) * gen; //worldWeights contains instr/gener for each world
         //return 1000L;
         return state.getFoxRabbitMetrics().get(world) * gen;
+    }
+
+    private String chooseProcessor(Request request){
+        double lastKnownAvg = this.state.getCPUAvg();
+        if(lastKnownAvg > 80 ) {
+            if (this.state. getPendingNr() > 0 && request.getCost() < 5000000){
+                //high cpu but small request -> lambda
+                return "Lambda";
+            } else if (this.state. getPendingNr() > 0 && request.getCost() > 10000000){
+                //high cpu but big request -> wait
+                return "Wait";
+            } else {
+                //high cpu average request -> assign to worker
+                return "Worker";
+            }
+        }
+        //normal case -> assign to worker
+        return "Worker";
+    }
+
+
+    private class WaitForWebserverTask extends TimerTask {
+        private FoxAndRabbitsRequest request;
+        private ArrayList<String> pending;
+
+        public WaitForWebserverTask(FoxAndRabbitsRequest request, ArrayList<String> pend) {
+            this.request = request;
+            this.pending = pend;
+        }
+
+        @Override
+        public void run() {
+            boolean canRun = false;
+            
+            for (String i: pending){
+                if (state.isRunning(i)) { 
+                    canRun = true;
+                    break;
+                }
+            }
+
+            if(canRun) { 
+                System.out.println("[LB]: Waiting request now sent...");
+                sendRequest(request); 
+            } 
+            else {
+                System.out.println("[LB]: Waiting request still waiting...");
+                WaitForWebserverTask task = new WaitForWebserverTask(this.request, this.pending);
+                timer.schedule(task, 5000);
+            }
+        }
     }
 
     public void sendRequest(FoxAndRabbitsRequest request) {
@@ -216,7 +279,7 @@ public class LBSimulationHandler implements HttpHandler {
 
 
 
-    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json) {
+    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json, FoxAndRabbitsRequest workerRequest) {
         byte[] response = null;
         try {
             //SdkBytes payload = SdkBytes.fromUtf8String(json) ;
@@ -229,12 +292,12 @@ public class LBSimulationHandler implements HttpHandler {
                 String re = new String(response, 1, response.length - 2).replace("\\","");
                 return re.getBytes() ;
 
-            } else {
-                // TODO - WHAT TO DO IF LAMBDA FAILS??
-            }
+            } 
 
         } catch(AWSLambdaException e) {
             System.err.println(e.getMessage());
+            System.out.println("[LB]: Lambda execution failed, retry on worker");
+            sendRequest(workerRequest);
         }
         return response;
     }
