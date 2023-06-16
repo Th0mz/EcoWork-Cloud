@@ -268,6 +268,12 @@ public class MetricsDB {
         }
     }
 
+    public static void initialize() {
+        for(int i = 0; i < perArmyRatio.size(); i++) {
+            perArmyRatioCount.add(1);
+        }
+    }
+
     public static synchronized void saveMetric(String typeRequest, String argsRequest, Double value) {
         if(!typeRequest.equals("war") && !typeRequest.equals("foxrabbit") 
             && !typeRequest.equals("compression"))

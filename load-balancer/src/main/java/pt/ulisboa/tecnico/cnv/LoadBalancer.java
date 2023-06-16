@@ -2,6 +2,8 @@ package pt.ulisboa.tecnico.cnv;
 
 import java.net.InetSocketAddress;
 import com.sun.net.httpserver.HttpServer;
+
+import pt.ulisboa.tecnico.cnv.database.MetricsDB;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
 public class LoadBalancer {
@@ -10,6 +12,7 @@ public class LoadBalancer {
     public static void main(String[] args) throws Exception {
         SystemState state = new SystemState();
         AutoScaler autoScaler = new AutoScaler(state);
+        MetricsDB.initialize();
         autoScaler.start();
 
         System.out.println("Running load balancer on port " + port + "...");
