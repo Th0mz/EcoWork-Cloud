@@ -29,6 +29,15 @@ Make sure that `aws-cli-bin` is on `~/`, and your AWS key is named `CNV-lab.pem`
 ./create_image.sh
 ```
 
+## Autoscaler 
+Make sure that you've created Webserver instance successfully
+```java
+// on SystemState.java (line 75) set
+File imageFile = new File("/home/ec2-user/scripts/image.id");
+```
+```
+./launch_load_balancer.sh
+```
 
 ## Load Balancer/Auto Scaler
 # Local Run : 
