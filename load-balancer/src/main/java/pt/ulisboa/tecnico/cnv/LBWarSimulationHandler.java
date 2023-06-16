@@ -85,14 +85,16 @@ public class LBWarSimulationHandler implements HttpHandler {
 
             AWSCredentialsProvider credentialsProvider = new EnvironmentVariableCredentialsProvider();
             AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
-            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs);
+            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs, request);
             awsLambda.shutdown();
+            if(response != null){
+                //send response back
+                exchange.sendResponseHeaders(200, response.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(response);
+                outputStream.close();
 
-            //send response back
-            exchange.sendResponseHeaders(200, response.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(response);
-            outputStream.close();
+            }
 
         } else  if (whereToExecute.equals("Wait")) {
             System.out.println("[LB]: Request too big while instances launching, waiting ...");
@@ -155,6 +157,11 @@ public class LBWarSimulationHandler implements HttpHandler {
     public Double calculateCost(long round, long army1, long army2) {
         Double value = 900502.0; //(which is (1,1,1)) tested locally
         ArrayList<Double> metrics = state.getInsectWarMetrics(); //index0- perRound; index1-perArmyRound1
+        for (Double d: metrics){
+            System.out.print(d);
+            System.out.print("||");
+        }
+        System.out.println("\n");
         if (army1 == army2) {
             value = value * (metrics.get(1)*army2);
             value = value + metrics.get(0) * army2 * (round-1);
@@ -290,7 +297,7 @@ public class LBWarSimulationHandler implements HttpHandler {
         return requestURL;
     }
 
-    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json) {
+    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json, InsectWarsRequest workerRequest) {
         byte[] response = null;
         try {
             //SdkBytes payload = SdkBytes.fromUtf8String(json) ;
@@ -302,13 +309,11 @@ public class LBWarSimulationHandler implements HttpHandler {
                 response = res.getPayload().array();
                 String re = new String(response, 1, response.length - 2).replace("\\","");
                 return re.getBytes() ;
-
-            } else {
-                // TODO - WHAT TO DO IF LAMBDA FAILS??
             }
-
         } catch(AWSLambdaException e) {
             System.err.println(e.getMessage());
+            System.out.println("[LB]: Lambda execution failed, retry on worker");
+            sendRequest(workerRequest);
         }
         return response;
     }

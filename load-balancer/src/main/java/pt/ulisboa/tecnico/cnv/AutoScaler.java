@@ -60,7 +60,7 @@ public class AutoScaler extends TimerTask {
             launchInstances((int) Math.ceil(count * 0.1));
         } else if (avg > 90) {
             launchInstances((int) Math.ceil(count * 0.15));
-        } else if ( avg <= 25 && avg > 15) {
+        } else if ( avg <= 25 && avg > 15 && count > 1) {
             terminateInstances(currentState, (int) Math.ceil(count * 0.1));
         } else if (avg <= 15 && count > 1) {
             terminateInstances(currentState, (int) Math.ceil(count*0.15));

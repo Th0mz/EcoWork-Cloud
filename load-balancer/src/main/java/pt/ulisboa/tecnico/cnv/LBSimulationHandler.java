@@ -83,14 +83,17 @@ public class LBSimulationHandler implements HttpHandler {
 
             AWSCredentialsProvider credentialsProvider = new EnvironmentVariableCredentialsProvider();
             AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
-            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs);
+            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs, request);
             awsLambda.shutdown();
 
-            //send response back
-            exchange.sendResponseHeaders(200, response.length);
-            OutputStream outputStream = exchange.getResponseBody();
-            outputStream.write(response);
-            outputStream.close();
+            if(response != null){
+                //send response back
+                exchange.sendResponseHeaders(200, response.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                outputStream.write(response);
+                outputStream.close();
+
+            }
 
         } else  if (whereToExecute.equals("Wait")) {
             System.out.println("[LB]: Request too big while instances launching, waiting ...");
@@ -276,7 +279,7 @@ public class LBSimulationHandler implements HttpHandler {
 
 
 
-    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json) {
+    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json, FoxAndRabbitsRequest workerRequest) {
         byte[] response = null;
         try {
             //SdkBytes payload = SdkBytes.fromUtf8String(json) ;
@@ -289,12 +292,12 @@ public class LBSimulationHandler implements HttpHandler {
                 String re = new String(response, 1, response.length - 2).replace("\\","");
                 return re.getBytes() ;
 
-            } else {
-                // TODO - WHAT TO DO IF LAMBDA FAILS??
-            }
+            } 
 
         } catch(AWSLambdaException e) {
             System.err.println(e.getMessage());
+            System.out.println("[LB]: Lambda execution failed, retry on worker");
+            sendRequest(workerRequest);
         }
         return response;
     }
