@@ -7,6 +7,16 @@ import pt.ulisboa.tecnico.cnv.requests.InsectWarsRequest;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.model.InvokeRequest;
+//import com.amazonaws.core.SdkBytes;
+import com.amazonaws.services.lambda.model.InvokeResult;
+import com.amazonaws.services.lambda.model.AWSLambdaException;
+import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import java.util.Arrays;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,6 +30,9 @@ public class LBSimulationHandler implements HttpHandler {
 
     private SystemState state;
     private final String path = "/simulate";
+    
+    // TODO - FOR TEST - DELETE FOR FINAL
+    public static int test = 1;
 
     public LBSimulationHandler(SystemState state) {
         this.state = state;
@@ -53,7 +66,28 @@ public class LBSimulationHandler implements HttpHandler {
         // TODO : estimate cost
         Long cost = calculateCost(world, n_generations).longValue();
         FoxAndRabbitsRequest request = new FoxAndRabbitsRequest(parameters, cost, exchange);
-        sendRequest(request);
+
+        // TODO : decide whether to send to lambda or worker
+        
+        if (test > 0) {
+            sendRequest(request);
+            test--;
+        } else {
+            String functionName = "foxesRabbits-lambda";
+            String jsonArgs = String.format("{\"generations\":\"%d\",\"world\":\"%d\",\"scenario\":\"%d\"}",
+                    n_generations, world, n_scenario);
+
+            AWSCredentialsProvider credentialsProvider = new EnvironmentVariableCredentialsProvider();
+            AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
+            byte[] response = invokeLambda(awsLambda, functionName, jsonArgs);
+            awsLambda.shutdown();
+
+            //JUST FOR TESTING, THEN REFACTOR
+            exchange.sendResponseHeaders(200, response.length);
+            OutputStream outputStream = exchange.getResponseBody();
+            outputStream.write(response);
+            outputStream.close();
+        }
     }
 
     public Double calculateCost(int world, int gen) {
@@ -120,14 +154,19 @@ public class LBSimulationHandler implements HttpHandler {
                 // Send the target server's response body back to the client
                 exchange.sendResponseHeaders(responseCode, responseBody.length);
                 OutputStream outputStream = exchange.getResponseBody();
+                System.out.println(new String(responseBody));
                 outputStream.write(responseBody);
                 outputStream.close();
 
                 // Close connections
                 responseStream.close();
                 connection.disconnect();
+                return;
             } catch (IOException e) {
                 System.out.println("[LB-simulation] Instance failed to deliver result (exception thrown), going to try again...");
+                
+                System.out.println(e.toString());
+                System.out.println(e.getMessage());
                 if (bestInstance != null) {
                     bestInstance.finishRequest(request.getId());
                 }
@@ -173,4 +212,32 @@ public class LBSimulationHandler implements HttpHandler {
 
         return requestURL;
     }
+
+
+
+
+    public byte[] invokeLambda(AWSLambda awsLambda, String functionName, String json) {
+        byte[] response = null;
+        try {
+            //SdkBytes payload = SdkBytes.fromUtf8String(json) ;
+
+            InvokeRequest request = new InvokeRequest().withFunctionName(functionName).withPayload(json);
+            System.out.println("[LB]: Invoking Lambda function " + functionName);
+            InvokeResult res = awsLambda.invoke(request);
+            if(res.getStatusCode() == 200) {
+                response = res.getPayload().array();
+                String re = new String(response, 1, response.length - 2).replace("\\","");
+                return re.getBytes() ;
+
+            } else {
+                // TODO - WHAT TO DO IF LAMBDA FAILS??
+            }
+
+        } catch(AWSLambdaException e) {
+            System.err.println(e.getMessage());
+        }
+        return response;
+    }
+    
+
 }

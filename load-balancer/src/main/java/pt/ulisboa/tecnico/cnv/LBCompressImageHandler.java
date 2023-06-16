@@ -6,6 +6,15 @@ import pt.ulisboa.tecnico.cnv.requests.CompressRequest;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.model.InvokeRequest;
+//import com.amazonaws.core.SdkBytes;
+import com.amazonaws.services.lambda.model.InvokeResult;
+import com.amazonaws.services.lambda.model.AWSLambdaException;
+import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
+import com.amazonaws.auth.AWSCredentialsProvider;
+
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -20,6 +29,9 @@ public class LBCompressImageHandler implements HttpHandler {
 
     private SystemState state;
     private final String path = "/compressimage";
+
+    // TODO - FOR TEST - DELETE FOR FINAL
+    public static int test = 1;
 
     public LBCompressImageHandler(SystemState state) {
         this.state = state;
@@ -59,7 +71,26 @@ public class LBCompressImageHandler implements HttpHandler {
 
         Long cost = calculateCost(targetFormat, height, height*height).longValue();
         CompressRequest request = new CompressRequest(requestBody, cost, exchange);
-        sendRequest(request);
+
+        if (test > 0) {
+            sendRequest(request);
+            test--;
+        } else {
+            String functionName = "compression-lambda";
+            String jsonArgs = String.format("{\"body\":\"%s\",\"compressionFactor\":\"%f\",\"targetFormat\":\"%s\"}",
+                    resultSplits[1], Double.parseDouble(compressionFactor), targetFormat);
+
+            AWSCredentialsProvider credentialsProvider = new EnvironmentVariableCredentialsProvider();
+            AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
+            String response = invokeLambda(awsLambda, functionName, jsonArgs);
+            awsLambda.shutdown();
+            byte[] output = String.format("data:image/%s;base64,%s", targetFormat, response).getBytes();
+            //JUST FOR TESTING, THEN REFACTOR
+            exchange.sendResponseHeaders(200, output.length);
+            OutputStream outputStream = exchange.getResponseBody();
+            outputStream.write(output);
+            outputStream.close();
+        }
     }
 
     public Double calculateCost(String format, int height, int pixels) {
@@ -125,9 +156,13 @@ public class LBCompressImageHandler implements HttpHandler {
                 outputStream.write(responseBody);
                 outputStream.close();
 
+                String re = new String(responseBody);
+                //System.out.println(re);
+
                 // Close connections
                 responseStream.close();
                 connection.disconnect();
+                return;
             } catch (IOException e) {
                 System.out.println("[LB-compress] Instance failed to deliver result (exception thrown), going to try again...");
                 if (bestInstance != null) {
@@ -175,4 +210,30 @@ public class LBCompressImageHandler implements HttpHandler {
 
         return requestURL;
     }
+
+
+    public String invokeLambda(AWSLambda awsLambda, String functionName, String json) {
+        String response = null;
+        try {
+            //SdkBytes payload = SdkBytes.fromUtf8String(json) ;
+
+            InvokeRequest request = new InvokeRequest().withFunctionName(functionName).withPayload(json);
+            System.out.println("[LB]: Invoking Lambda function " + functionName);
+            InvokeResult res = awsLambda.invoke(request);
+            if(res.getStatusCode() == 200) {
+                byte[] responseAux = res.getPayload().array();
+                String re = new String(responseAux, 1, responseAux.length - 2);
+                //System.out.println(re);
+                return re;
+
+            } else {
+                // TODO - WHAT TO DO IF LAMBDA FAILS??
+            }
+
+        } catch(AWSLambdaException e) {
+            System.err.println(e.getMessage());
+        }
+        return response;
+    }
+    
 }
