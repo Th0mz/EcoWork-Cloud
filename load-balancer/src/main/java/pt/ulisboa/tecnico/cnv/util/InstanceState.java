@@ -83,6 +83,20 @@ public class InstanceState {
         }
     }
 
+    public long getMetric(){
+        //benefit instances that have fewer jobs in case of equal nr of instructs
+        long discount;
+        long instructions = getExecutingInstructions();
+        long tasks = (long)requests.size();
+
+        discount = (tasks > 0) ? instructions/tasks : 0;
+        return instructions - (long)(0.9*discount);
+
+    }
+    public int getNumRequests(){
+        return requests.size();
+    }
+
     public String getUrl() {
         return url;
     }

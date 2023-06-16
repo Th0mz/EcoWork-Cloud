@@ -128,6 +128,11 @@ public class MetricsDB {
         MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
         MetricsDB.saveMetric(new InsectWarObj(1, 10, 10, 1310000));
         MetricsDB.saveMetric(new InsectWarObj(2, 10, 10, 1510000));
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
+        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
+        //MetricsDB.saveMetric(new InsectWarObj(1, 10, 10, 1310000));
+        //MetricsDB.saveMetric(new InsectWarObj(2, 10, 10, 1510000));
 
         MetricsDB.saveMetric(new InsectWarObj(1, 3, 3, 6000));
         MetricsDB.saveMetric(new InsectWarObj(2, 3, 3, 306000));

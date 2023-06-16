@@ -5,8 +5,15 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.*;
-
+import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest;
+import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.DescribeSecurityGroupsResult;
+import com.amazonaws.services.ec2.model.RunInstancesRequest;
+import com.amazonaws.services.ec2.model.RunInstancesResult;
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.TerminateInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesResult;
 import pt.ulisboa.tecnico.cnv.database.MetricsDB;
 
 import java.io.File;
@@ -14,7 +21,13 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.Random;
+import java.util.Scanner;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemState {
@@ -125,7 +138,13 @@ public class SystemState {
 
         InstanceState bestInstance = null;
         for (InstanceState instance : this.runningInstances.values()) {
-            if (bestInstance == null || bestInstance.getExecutingInstructions() > instance.getExecutingInstructions()) {
+            if(bestInstance != null){
+                //System.out.println("\n\n\nBEST"+ bestInstance.getMetric()+ "\n\n\n");
+                //System.out.println("\n\n\nCURRENT"+ instance.getMetric()+ "\n\n\n");
+                
+            }
+            if (bestInstance == null || bestInstance.getMetric() > instance.getMetric()) {
+                //System.out.println("BEST CHANGED");
                 bestInstance = instance;
             }
         }
