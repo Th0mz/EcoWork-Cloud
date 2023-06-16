@@ -125,7 +125,13 @@ public class SystemState {
 
         InstanceState bestInstance = null;
         for (InstanceState instance : this.runningInstances.values()) {
-            if (bestInstance == null || bestInstance.getExecutingInstructions() > instance.getExecutingInstructions()) {
+            if(bestInstance != null){
+                //System.out.println("\n\n\nBEST"+ bestInstance.getMetric()+ "\n\n\n");
+                //System.out.println("\n\n\nCURRENT"+ instance.getMetric()+ "\n\n\n");
+                
+            }
+            if (bestInstance == null || bestInstance.getMetric() > instance.getMetric()) {
+                //System.out.println("BEST CHANGED");
                 bestInstance = instance;
             }
         }
