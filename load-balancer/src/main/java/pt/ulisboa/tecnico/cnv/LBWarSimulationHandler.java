@@ -310,7 +310,7 @@ public class LBWarSimulationHandler implements HttpHandler {
                 String re = new String(response, 1, response.length - 2).replace("\\","");
                 return re.getBytes() ;
             } else {
-                res.getPayload().array();
+                return res.getPayload().array();
             }
         } catch(AWSLambdaException e) {
             System.err.println(e.getMessage());
