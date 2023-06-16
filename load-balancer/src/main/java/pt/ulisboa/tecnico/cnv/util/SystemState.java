@@ -172,6 +172,9 @@ public class SystemState {
 
         // remove instance from the running structure
         InstanceState instance =  this.runningInstances.remove(instanceID);
+        if (instance == null) {
+            return;
+        }
 
         if (!instance.hasRequests()) {
             // terminate the instance in background
