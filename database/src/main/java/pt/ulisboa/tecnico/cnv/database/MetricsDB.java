@@ -2,7 +2,10 @@ package pt.ulisboa.tecnico.cnv.database;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -13,8 +16,13 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.dynamodbv2.AcquireLockOptions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBLockClient;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBLockClientOptions;
+import com.amazonaws.services.dynamodbv2.CreateDynamoDBTableOptions;
+import com.amazonaws.services.dynamodbv2.LockItem;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
@@ -26,6 +34,7 @@ import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
@@ -47,6 +56,15 @@ public class MetricsDB {
         .withCredentials(new EnvironmentVariableCredentialsProvider())
         .withRegion(AWS_REGION)
         .build();
+
+    private static final AmazonDynamoDBLockClient lockClient = new AmazonDynamoDBLockClient(
+        AmazonDynamoDBLockClientOptions.builder(client, "lockTable")
+                .withTimeUnit(TimeUnit.SECONDS)
+                .withLeaseDuration(5L)
+                .withHeartbeatPeriod(2L)
+                .withCreateHeartbeatBackgroundThread(true)
+                .build());
+        
 
     private static DynamoDB dynamoDB = new DynamoDB(client);
 
@@ -74,6 +92,7 @@ public class MetricsDB {
             0.998239, 0.998285, 0.998329, 0.998372, 0.998452, 0.99849, 0.998526, 0.998561, 0.998595, 0.998628, 
             0.99866, 0.99869, 0.99872, 0.998748, 0.998776, 0.998803, 0.998828, 0.998853, 0.998878, 0.998901, 
             0.998924, 0.998946, 0.998967, 0.998988, 0.999008, 0.999027, 0.999046, 0.999065, 0.999082));
+    private static ArrayList<Integer> perArmyRatioCount = new ArrayList<Integer>();
 
     private static Double storedLastPerRound = 300000.0;
     private static Double storedLastPerArmy = 1.0;
@@ -88,35 +107,36 @@ public class MetricsDB {
 
     public static void main(String[] args) throws Exception {
         MetricsDB.createDB();
-        //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 1000));
-        //MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 500));
-        //MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 300));
-        //MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
-        //MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
-        //MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 1000));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 3, 1, 500));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 3, 1, 300));
+        MetricsDB.saveMetric(new FoxRabbitObj(10, 2, 1, 1500));
+        MetricsDB.saveMetric(new FoxRabbitObj(5, 2, 1, 750));
+        MetricsDB.saveMetric(new FoxRabbitObj(3, 2, 1, 450));
         // MetricsDB.saveMetric(new CompressObj("bmp", "0.2", 1156, 1336336, 865569L));
         // MetricsDB.saveMetric(new CompressObj("bmp", "0.3", 1157, 1336336, 866164L));
         // MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 1158, 1336336, 875353L));
-        // MetricsDB.saveMetric(new CompressObj("png", "0.2", 1156, 1336336, 865569L));
-        // MetricsDB.saveMetric(new CompressObj("png", "0.3", 1157, 1336336, 866164L));
-        // MetricsDB.saveMetric(new CompressObj("png", "0.4", 1158, 1336336, 875353L));
-        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.2", 1156, 1336336, 865569L));
-        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.3", 1157, 1336336, 866164L));
-        // MetricsDB.saveMetric(new CompressObj("jpeg", "0.4", 1158, 1336336, 875353L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.2", 1156, 1336336, 865569L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.3", 1157, 1336336, 866164L));
+        MetricsDB.saveMetric(new CompressObj("png", "0.4", 1158, 1336336, 875353L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.2", 1156, 1336336, 865569L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.3", 1157, 1336336, 866164L));
+        MetricsDB.saveMetric(new CompressObj("jpeg", "0.4", 1158, 1336336, 875353L));
         
-        //MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
-        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
-        //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
+        MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
         MetricsDB.saveMetric(new InsectWarObj(1, 10, 10, 1310000));
         MetricsDB.saveMetric(new InsectWarObj(2, 10, 10, 1510000));
 
-        //MetricsDB.saveMetric(new InsectWarObj(1, 3, 3, 6000));
-        //MetricsDB.saveMetric(new InsectWarObj(2, 3, 3, 306000));
+        MetricsDB.saveMetric(new InsectWarObj(1, 3, 3, 6000));
+        MetricsDB.saveMetric(new InsectWarObj(2, 3, 3, 306000));
 
         //MetricsDB.saveMetric(new InsectWarObj(1, 2, 2, 4000));
         //MetricsDB.saveMetric(new InsectWarObj(4, 2, 2, 1804000));
 
-        //MetricsDB.saveMetric(new InsectWarObj(1, 10, 11, 9603536));
+        MetricsDB.saveMetric(new InsectWarObj(1, 10, 11, 9603536));
+        MetricsDB.saveMetric(new InsectWarObj(1, 10, 20, 9603536));
 
 
         updateAllMetrics();
@@ -140,6 +160,8 @@ public class MetricsDB {
 
         try {
 
+            /////////////////////////////////////////////////////////
+            //Create table to store metrics
             ArrayList<AttributeDefinition> attrs = new ArrayList<AttributeDefinition>();
             attrs.add(new AttributeDefinition().withAttributeName("endpoint")
                     .withAttributeType("S"));
@@ -154,13 +176,38 @@ public class MetricsDB {
             
             createTableRequest.setAttributeDefinitions(attrs);
 
-            /* Table table = dynamoDB.createTable(createTableRequest);
-            table.waitForActive(); */
             // Create table if it does not exist yet
             boolean createdNewTable = TableUtils.createTableIfNotExists(client, createTableRequest);
             
             // wait for the table to move into ACTIVE state
             TableUtils.waitUntilActive(client, tableName);
+            //////////////////////////////////////////////////////
+            
+
+            /////////////////////////////////////////////////////
+            //Create table to use for locks
+            /* CreateTableRequest createLockTableRequest = new CreateTableRequest().withTableName("lockTable")
+                .withProvisionedThroughput(new ProvisionedThroughput()
+                .withReadCapacityUnits(10L).withWriteCapacityUnits(10L));
+            
+            TableUtils.createTableIfNotExists(client, createLockTableRequest);
+            TableUtils.waitUntilActive(client, "lockTable"); */
+
+            try {
+                CreateDynamoDBTableOptions options = CreateDynamoDBTableOptions
+                .builder(client, new ProvisionedThroughput()
+                .withReadCapacityUnits(10L).withWriteCapacityUnits(10L), 
+                "lockTable").build();
+            
+                AmazonDynamoDBLockClient.createLockTableInDynamoDB(options);
+            } catch (ResourceInUseException e) {
+
+            }
+            
+            
+            
+            ////////////////////////////////////////////////////
+
 
             // Describe our new table
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
@@ -171,6 +218,12 @@ public class MetricsDB {
             objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
             objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
 
+            //NEED TO INITIALIZE COUNT
+            for(int i = 0; i < perArmyRatio.size(); i++) {
+                perArmyRatioCount.add(1);
+            }
+
+
             if(!createdNewTable) return;
 
             //Update initial metrics to the database
@@ -180,10 +233,14 @@ public class MetricsDB {
 
             client.putItem(InsectWarObj.generateRequest(tableName, 1, 1.0, 
                 1, 300000.0));
-            
-            for(int i = 0; i < perArmyRatio.size(); i++) {
-                client.putItem(InsectWarObj.generateRatioRequest(tableName, i, perArmyRatio.get(i), 1));
-            }
+
+            //for(int i = 0; i < perArmyRatio.size(); i++) {
+            //    client.putItem(InsectWarObj.generateRatioRequest(tableName, i, perArmyRatio.get(i), 1));
+            //}
+
+            client.putItem(InsectWarObj.generateOneRatioRequest(tableName, perArmyRatio, perArmyRatioCount));
+
+
 
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 1, 9000.0));
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 2, 30000.0));
@@ -307,482 +364,632 @@ public class MetricsDB {
     public static void updateAllMetrics() { 
         // for all AbstractMetricObj: generate new PutItemRequest; client.putItem();
 
-        //TODO: LOCK DB
-        //DynamoLock()
         updateFoxesRabbits();
         if(bmpImages.size() >= 3) updateBMP();
         if(pngImages.size() >= 3) updatePNG();
         if(jpgImages.size() >= 3) updateJPG();
         updateInsectWars();
-        //DynamoUnlock()
     }
 
 
 
 
     public static void updateInsectWars() {
-        if(!objsToSave.containsKey(InsectWarObj.endpoint)) {
-            objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
-            return;
-        }
 
-        Double round1perarmysize = 1.0, roundincreasewhenarmyequal = 300000.0;
-        Integer nr_round1perarmysize = 1, nr_roundincreasewhenarmyequal = 1;
+        try {
+            
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder("war").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on UpdateWarBasic");
 
+                if(!objsToSave.containsKey(InsectWarObj.endpoint)) {
+                    objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+                    return;
+                }
 
-        ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint);
-        List<Map<String,AttributeValue>> listItems = sr.getItems();
-
-        for(Map<String,AttributeValue> itemAttributes : listItems) {
-            round1perarmysize = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
-            nr_round1perarmysize = Integer.parseInt(itemAttributes.get("nr_round1perarmysize").getN());
-
-            roundincreasewhenarmyequal = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
-            nr_roundincreasewhenarmyequal = Integer.parseInt(itemAttributes.get("nr_roundincreasewhenarmyequal").getN());
-        }
+                Double round1perarmysize = 1.0, roundincreasewhenarmyequal = 300000.0;
+                Integer nr_round1perarmysize = 1, nr_roundincreasewhenarmyequal = 1;
 
 
-        //Calculus of per round variation as a function of army size,
-        // when armies are equal
-        int nr_measures = 0;
-        Double estimatePerRound = 0.0;
-        //List<InsectWarObj> roundOneBaselines = new ArrayList<InsectWarObj>();
-        for (Integer armySize : samearmysize.keySet()) {
-            if (samearmysize.get(armySize).size() > 1) {
-                List<Integer> toRemove = new ArrayList<Integer>();
-                for (InsectWarObj obj1 : samearmysize.get(armySize).values()) {
-                    if (obj1.getMax() != 1) continue;
-                    //roundOneBaselines.add(obj1);
-                    for (InsectWarObj obj2 : samearmysize.get(armySize).values()) {
-                        if (obj1.getMax() == obj2.getMax()) continue;
-                        nr_measures++;
-                        int roundDif = obj2.getMax() - obj1.getMax();
-                        Long instrDif = obj2.getInstructions() - obj1.getInstructions();
-                        Double functionOfRound = instrDif*1.0 / (armySize*roundDif*1.0);
-                        System.out.println("GETS HERE!!!");
-                        toRemove.add(obj2.getMax());
-                        estimatePerRound += functionOfRound;
+                ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint);
+                List<Map<String,AttributeValue>> listItems = sr.getItems();
+
+                for(Map<String,AttributeValue> itemAttributes : listItems) {
+                    round1perarmysize = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
+                    nr_round1perarmysize = Integer.parseInt(itemAttributes.get("nr_round1perarmysize").getN());
+
+                    roundincreasewhenarmyequal = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
+                    nr_roundincreasewhenarmyequal = Integer.parseInt(itemAttributes.get("nr_roundincreasewhenarmyequal").getN());
+                }
+
+
+                //Calculus of per round variation as a function of army size,
+                // when armies are equal
+                int nr_measures = 0;
+                Double estimatePerRound = 0.0;
+                //List<InsectWarObj> roundOneBaselines = new ArrayList<InsectWarObj>();
+                for (Integer armySize : samearmysize.keySet()) {
+                    if (samearmysize.get(armySize).size() > 1) {
+                        List<Integer> toRemove = new ArrayList<Integer>();
+                        for (InsectWarObj obj1 : samearmysize.get(armySize).values()) {
+                            if (obj1.getMax() != 1) continue;
+                            //roundOneBaselines.add(obj1);
+                            for (InsectWarObj obj2 : samearmysize.get(armySize).values()) {
+                                if (obj1.getMax() == obj2.getMax()) continue;
+                                nr_measures++;
+                                int roundDif = obj2.getMax() - obj1.getMax();
+                                Long instrDif = obj2.getInstructions() - obj1.getInstructions();
+                                Double functionOfRound = instrDif*1.0 / (armySize*roundDif*1.0);
+                                System.out.println("GETS HERE!!!");
+                                toRemove.add(obj2.getMax());
+                                estimatePerRound += functionOfRound;
+                            }
+                        }
+                        for(Integer key : toRemove) {
+                            samearmysize.get(armySize).remove(key);
+                        }
                     }
                 }
-                for(Integer key : toRemove) {
-                    samearmysize.get(armySize).remove(key);
+                //first index for army size, second index for round number 
+                /* samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
+                for(InsectWarObj obj : roundOneBaselines) {
+                    if(!samearmysize.containsKey(obj.getArmy1()))
+                        samearmysize.put(obj.getArmy1(), new HashMap<Integer, InsectWarObj>());
+                    samearmysize.get(obj.getArmy1()).put(obj.getMax(), obj);
+                } */
+
+
+                //Calculus of per army size variation as a function of round,
+                // when armies are equal and round is one
+                int nr_measures_roundone = 0;
+                Double estimatePerArmy = 0.0;
+                for (InsectWarObj obj1 : roundOneEqualArmy) {
+                    System.out.println("----------->>>>>-----------");
+                    System.out.println("OBJ1 Army: " + obj1.getArmy1());
+
+                    Double armyRatio =  obj1.getArmy1()*1.0/1.0; //army1 is the baseline for comparison
+                    Double instrRatio = obj1.getInstructions()*1.0/insect111Value;
+                    Double functionOfArmy = instrRatio/armyRatio;
+                    estimatePerArmy += functionOfArmy;
+                    nr_measures_roundone++;
+                    System.out.println("Army ratio: " + armyRatio);
+                    System.out.println("Instr ratio: " + instrRatio);
+                    System.out.println("FunctionOfArmy: " + functionOfArmy);
+                    System.out.println("EstimatePerArmy: " + estimatePerArmy);
+
+                    System.out.println("-----------<<<<<-----------");
                 }
+
+                Integer nr_finalPerRound, nr_finalPerArmy;
+                Double finalPerRound, finalPerArmy;
+
+                if (estimatePerRound == 0) {
+                    finalPerRound = roundincreasewhenarmyequal;
+                    nr_finalPerRound = nr_roundincreasewhenarmyequal;
+                    System.out.println(String.format("[INSECTWAR - DB] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
+
+                } else {
+                    nr_finalPerRound = nr_measures + nr_roundincreasewhenarmyequal;
+                    finalPerRound = (estimatePerRound + roundincreasewhenarmyequal * nr_roundincreasewhenarmyequal) / nr_finalPerRound;
+                    System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
+
+                }
+
+                if (estimatePerArmy == 0) {
+                    finalPerArmy = round1perarmysize;
+                    nr_finalPerArmy = nr_round1perarmysize;
+                    System.out.println(String.format("[INSECTWAR - DB] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
+
+                } else {
+                    nr_finalPerArmy = nr_measures_roundone + nr_round1perarmysize;
+                    finalPerArmy = (estimatePerArmy + round1perarmysize * nr_round1perarmysize) / nr_finalPerArmy;
+                    System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
+                    System.out.println(String.format("[INSECTWAR - DB&LOCAL *] estimatePerArmy-%f round1perarmysize-%f", estimatePerArmy, round1perarmysize));
+                    System.out.println(String.format("[INSECTWAR - DB&LOCAL **] nr_round1perarmysize-%d nr_measures_roundone-%d", nr_round1perarmysize, nr_measures_roundone));
+                }
+            
+                storedLastPerArmy = finalPerArmy;
+                storedLastPerRound = finalPerRound;
+                System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
+                System.out.println(String.format("PERROUND-%d", nr_finalPerRound));
+                client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
+                        nr_finalPerRound, finalPerRound));
+
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on UpdateWarBasic");
+            } else {
+                System.out.println("Could not get lock");
             }
-        }
-        //first index for army size, second index for round number 
-        /* samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
-        for(InsectWarObj obj : roundOneBaselines) {
-            if(!samearmysize.containsKey(obj.getArmy1()))
-                samearmysize.put(obj.getArmy1(), new HashMap<Integer, InsectWarObj>());
-            samearmysize.get(obj.getArmy1()).put(obj.getMax(), obj);
-        } */
-
-
-        //Calculus of per army size variation as a function of round,
-        // when armies are equal and round is one
-        int nr_measures_roundone = 0;
-        Double estimatePerArmy = 0.0;
-        for (InsectWarObj obj1 : roundOneEqualArmy) {
-            System.out.println("----------->>>>>-----------");
-            System.out.println("OBJ1 Army: " + obj1.getArmy1());
-
-            Double armyRatio =  obj1.getArmy1()*1.0/1.0; //army1 is the baseline for comparison
-            Double instrRatio = obj1.getInstructions()*1.0/insect111Value;
-            Double functionOfArmy = instrRatio/armyRatio;
-            estimatePerArmy += functionOfArmy;
-            nr_measures_roundone++;
-            System.out.println("Army ratio: " + armyRatio);
-            System.out.println("Instr ratio: " + instrRatio);
-            System.out.println("FunctionOfArmy: " + functionOfArmy);
-            System.out.println("EstimatePerArmy: " + estimatePerArmy);
-
-            System.out.println("-----------<<<<<-----------");
+            
+        } catch (Exception e ) {
+            //e.printStackTrace();
         }
 
-        Integer nr_finalPerRound, nr_finalPerArmy;
-        Double finalPerRound, finalPerArmy;
 
-        if (estimatePerRound == 0) {
-            finalPerRound = roundincreasewhenarmyequal;
-            nr_finalPerRound = nr_roundincreasewhenarmyequal;
-            System.out.println(String.format("[INSECTWAR - DB] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
 
-        } else {
-            nr_finalPerRound = nr_measures + nr_roundincreasewhenarmyequal;
-            finalPerRound = (estimatePerRound + roundincreasewhenarmyequal * nr_roundincreasewhenarmyequal) / nr_finalPerRound;
-            System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERROUND-%f NR_INSTANCES-%d", finalPerRound, nr_finalPerRound));
+        try {
+            final AmazonDynamoDBLockClient lockClient = new AmazonDynamoDBLockClient(
+                AmazonDynamoDBLockClientOptions.builder(client, "lockTable")
+                        .withTimeUnit(TimeUnit.SECONDS)
+                        .withLeaseDuration(10L)
+                        .withHeartbeatPeriod(3L)
+                        .withCreateHeartbeatBackgroundThread(true)
+                        .build());
 
-        }
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder("warratio").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on UpdateWarRatio");
 
-        if (estimatePerArmy == 0) {
-            finalPerArmy = round1perarmysize;
-            nr_finalPerArmy = nr_round1perarmysize;
-            System.out.println(String.format("[INSECTWAR - DB] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
-
-        } else {
-            nr_finalPerArmy = nr_measures_roundone + nr_round1perarmysize;
-            finalPerArmy = (estimatePerArmy + round1perarmysize * nr_round1perarmysize) / nr_finalPerArmy;
-            System.out.println(String.format("[INSECTWAR - DB&LOCAL] PERARMY-%f NR_INSTANCES-%d", finalPerArmy, nr_finalPerArmy));
-            System.out.println(String.format("[INSECTWAR - DB&LOCAL *] estimatePerArmy-%f round1perarmysize-%f", estimatePerArmy, round1perarmysize));
-            System.out.println(String.format("[INSECTWAR - DB&LOCAL **] nr_round1perarmysize-%d nr_measures_roundone-%d", nr_round1perarmysize, nr_measures_roundone));
-        }
-    
-        storedLastPerArmy = finalPerArmy;
-        storedLastPerRound = finalPerRound;
-        System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
-        System.out.println(String.format("PERROUND-%d", nr_finalPerRound));
-        client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
-                nr_finalPerRound, finalPerRound));
-
-        //Also update the Ratios of instr/armyratio
-        HashMap<Integer, Double> sumPerIndex = new HashMap<Integer, Double>();
-        HashMap<Integer, Integer> countPerIndex = new HashMap<Integer, Integer>();
-        
-        for(InsectWarObj obj : differentArmySizeList) {
-            int army1 = obj.getArmy1();
-            int army2 = obj.getArmy2();
-            int round = obj.getMax();
-            System.out.println(String.format("Updating based on (%d, %d, %d)", round, army1, army2));
-            Double value = insect111Value;
-            if (army1==army2) continue;
-            if (army2 < army1) {
-                value = value * (finalPerArmy*army2);
-                value = value + finalPerRound * army2 * (round-1);
-                int index = (int) (((army1*1.0/army2) - 1) / 0.1) - 1;
-                if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
-                Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army1*1.0/army2));
-                //Double afterApplyingRatio = value * perArmyRatio.get(index) * (army1/army2);
-
-                if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
-                sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
-
-                if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
-                countPerIndex.put(index, countPerIndex.get(index) + 1);
-            } 
-            else { //army1 < army2
-                value = value * (finalPerArmy*army1);
-                value = value + finalPerRound * army1 * (round-1);
-                int index = (int) (((army2*1.0/army1) - 1) / 0.1) - 1;
-                if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
-                //value = value * perArmyRatio.get(index) * (army2/army1);
-                Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army2*1.0/army1));
-                System.out.println(String.format("Number instr: %d | previousStep: %f | ratio: %f", obj.getInstructions(), value, army2*1.0/army1));
-                System.out.println(String.format("Calculated ratio is %f (index %d)", calculatedRatio, index));
+                //Also update the Ratios of instr/armyratio
+                HashMap<Integer, Double> sumPerIndex = new HashMap<Integer, Double>();
+                HashMap<Integer, Integer> countPerIndex = new HashMap<Integer, Integer>();
                 
-                if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
-                sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
+                for(InsectWarObj obj : differentArmySizeList) {
+                    int army1 = obj.getArmy1();
+                    int army2 = obj.getArmy2();
+                    int round = obj.getMax();
+                    System.out.println(String.format("Updating based on (%d, %d, %d)", round, army1, army2));
+                    Double value = insect111Value;
+                    if (army1==army2) continue;
+                    if (army2 < army1) {
+                        value = value * (storedLastPerArmy*army2);
+                        value = value + storedLastPerRound * army2 * (round-1);
+                        int index = (int) (((army1*1.0/army2) - 1) / 0.1) - 1;
+                        if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
+                        Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army1*1.0/army2));
+                        //Double afterApplyingRatio = value * perArmyRatio.get(index) * (army1/army2);
+                        System.out.println("Calculated ratio:" + calculatedRatio);
 
-                if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
-                countPerIndex.put(index, countPerIndex.get(index) + 1);
+                        if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
+                        sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
 
+                        if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
+                        countPerIndex.put(index, countPerIndex.get(index) + 1);
+                    } 
+                    else { //army1 < army2
+                        value = value * (storedLastPerArmy*army1);
+                        value = value + storedLastPerRound * army1 * (round-1);
+                        int index = (int) (((army2*1.0/army1) - 1) / 0.1) - 1;
+                        if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
+                        //value = value * perArmyRatio.get(index) * (army2/army1);
+                        Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army2*1.0/army1));
+                        System.out.println(String.format("Number instr: %d | previousStep: %f | ratio: %f", obj.getInstructions(), value, army2*1.0/army1));
+                        System.out.println(String.format("Calculated ratio is %f (index %d)", calculatedRatio, index));
+                        
+                        if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
+                        sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
+
+                        if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
+                        countPerIndex.put(index, countPerIndex.get(index) + 1);
+
+                    }
+                }
+
+                /* for(Integer index : countPerIndex.keySet()) {
+                    ScanResult res = getItemsForEndpoint(InsectWarObj.endpoint + String.valueOf(index));
+                    List<Map<String,AttributeValue>> listOfRatios = res.getItems();
+                    System.out.println(String.format("Get items with key %s", InsectWarObj.endpoint + String.valueOf(index)));
+
+                    Integer totalCount = countPerIndex.get(index);
+                    Double totalSum = sumPerIndex.get(index);
+
+                    for(Map<String,AttributeValue> itemAttributes : listOfRatios) {
+                        Double storedRatio = Double.parseDouble(itemAttributes.get("perArmyRatio").getN());
+                        Integer numberStored = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                        totalCount += numberStored;
+                        totalSum += (storedRatio * numberStored);
+                        System.out.println(String.format("storedRatio-%f numberStored-%d totalCount-%d totalSum-%f", 
+                            storedRatio, numberStored, totalCount, totalSum));
+                    }
+                    Double totalRatio = totalSum / totalCount;
+                    System.out.println(String.format("Total ratio-%f", totalRatio));
+                    perArmyRatio.set(index, totalRatio);
+                    perArmyRatioCount.set(index, totalCount);
+                    client.putItem(InsectWarObj.generateRatioRequest(tableName, index, totalRatio, totalCount));
+                } */
+
+                ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint + "ratio");
+                List<Map<String,AttributeValue>> listItems = sr.getItems();
+                for(Map<String,AttributeValue> itemAttributes : listItems) {
+                    for(int i = 0; i < perArmyRatio.size(); i++) {
+                        Double r = Double.parseDouble(itemAttributes.get("perArmyRatio"+String.valueOf(i)).getN());
+                        Integer c = Integer.parseInt(itemAttributes.get("nr_previous"+String.valueOf(i)).getN());
+                        System.out.println("INSECT GOT PerArmyRatio-"+ r + " with count-" + c + " in index-" + i);
+                        perArmyRatio.set(i, r);
+                        perArmyRatioCount.set(i, c);
+                    }
+                }
+
+                for(Integer index : countPerIndex.keySet()) {
+                    
+                    Integer totalCount = countPerIndex.get(index);
+                    Double totalSum = sumPerIndex.get(index);
+
+                    Double storedRatio = perArmyRatio.get(index);
+                    Integer numberStored = perArmyRatioCount.get(index);
+                    totalCount += numberStored;
+                    totalSum += (storedRatio * numberStored);
+                    System.out.println(String.format("storedRatio-%f numberStored-%d totalCount-%d totalSum-%f", 
+                        storedRatio, numberStored, totalCount, totalSum));
+                    
+                    Double totalRatio = totalSum / totalCount;
+                    System.out.println(String.format("Total ratio-%f", totalRatio));
+                    perArmyRatio.set(index, totalRatio);
+                    perArmyRatioCount.set(index, totalCount);
+                    //client.putItem(InsectWarObj.generateRatioRequest(tableName, index, totalRatio, totalCount));
+                }
+
+                client.putItem(InsectWarObj.generateOneRatioRequest(tableName, perArmyRatio, perArmyRatioCount));
+
+                differentArmySizeList.clear();
+
+                objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+                roundOneEqualArmy.clear();
+                
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on UpdateWarRatio");
+            } else {
+                System.out.println("Could not get lock");
             }
+            
+        } catch (Exception e ) {
+            //e.printStackTrace();
         }
-
-        for(Integer index : countPerIndex.keySet()) {
-            ScanResult res = getItemsForEndpoint(InsectWarObj.endpoint + String.valueOf(index));
-            List<Map<String,AttributeValue>> listOfRatios = res.getItems();
-            System.out.println(String.format("Get items with key %s", InsectWarObj.endpoint + String.valueOf(index)));
-
-            Integer totalCount = countPerIndex.get(index);
-            Double totalSum = sumPerIndex.get(index);
-
-            for(Map<String,AttributeValue> itemAttributes : listOfRatios) {
-                Double storedRatio = Double.parseDouble(itemAttributes.get("perArmyRatio").getN());
-                Integer numberStored = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                totalCount += numberStored;
-                totalSum += (storedRatio * numberStored);
-                System.out.println(String.format("storedRatio-%f numberStored-%d totalCount-%d totalSum-%f", 
-                    storedRatio, numberStored, totalCount, totalSum));
-            }
-            Double totalRatio = totalSum / totalCount;
-            System.out.println(String.format("Total ratio-%f", totalRatio));
-            client.putItem(InsectWarObj.generateRatioRequest(tableName, index, totalRatio, totalCount));
-        }
-
-        differentArmySizeList.clear();
-
-        objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
-        roundOneEqualArmy.clear();
     }
 
 
 
 
     public static void updateBMP() {
-        if(!objsToSave.containsKey(CompressObj.endpoint)) {
-            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-            return;
-        }
 
-        HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
-        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
+        try {
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder("compressbmp").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on BMP");
 
-        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
-        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
-        List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+                HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
+                HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+                HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
-        for(String t : formats) {
-            sumEachSlope.put(t, 0.0);
-            sumEachOrigin.put(t, 0.0);
-            totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0.0);
-            previousOrigin.put(t, 0.0);
-            nr_previous.put(t, 0);
-        }
+                HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+                HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
+                List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+
+                List<String> formats = Arrays.asList("bmp", "png", "jpeg"); 
+                for(String t : formats) {
+                    sumEachSlope.put(t, 0.0);
+                    sumEachOrigin.put(t, 0.0);
+                    totalMeasuresPerWorld.add(0);
+                    previousSlope.put(t, 0.0);
+                    previousOrigin.put(t, 0.0);
+                    nr_previous.put(t, 0);
+                }
 
 
-        for(String f : formats) {
-            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
-            List<Map<String,AttributeValue>> listItems = sr.getItems();
-            for(Map<String,AttributeValue> itemAttributes : listItems) {
-                String format = itemAttributes.get("format").getS();
-                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
-                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
-                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                nr_previous.put(format, previous_runs);
-                previousSlope.put(format, previous_slope);
-                previousOrigin.put(format, previous_origin);
+                for(String f : formats) {
+                    ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+                    List<Map<String,AttributeValue>> listItems = sr.getItems();
+                    for(Map<String,AttributeValue> itemAttributes : listItems) {
+                        String format = itemAttributes.get("format").getS();
+                        Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                        Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                        int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                        nr_previous.put(format, previous_runs);
+                        previousSlope.put(format, previous_slope);
+                        previousOrigin.put(format, previous_origin);
+                    }
+                }
+
+                List<Double> x = new ArrayList<Double>();
+                List<Double> y = new ArrayList<Double>();
+
+                int x_temp = bmpImages.get(0).getHeight();
+                boolean enough_points = false;
+                for(CompressObj obj : bmpImages) {
+                    if(obj.getHeight() != x_temp) enough_points = true; 
+                    x.add(obj.getHeight().doubleValue());
+                    y.add(obj.getInstructions().doubleValue());
+                }
+
+                if (!enough_points) {
+                    lockClient.releaseLock(lockItem.get());
+                    System.out.println("RELEASED Lock on BMP");
+                    return;
+                } 
+
+                LinearRegression regression = new LinearRegression(x, y);
+                regression.calculateRegression();
+
+                Double newSlope = regression.getSlope();
+                Double newOrigin = regression.getOrigin();
+                System.out.println("NEW SLOPE: " + newSlope);
+                System.out.println("NEW ORIGIN: " + newOrigin);
+
+                Integer numberMeasures = nr_previous.get("bmp")+bmpImages.size();
+                Double finalSlope = (newSlope * bmpImages.size() + previousSlope.get("bmp") * nr_previous.get("bmp")) / numberMeasures;
+                Double finalOrigin = (newOrigin * bmpImages.size() + previousOrigin.get("bmp") * nr_previous.get("bmp")) / numberMeasures;
+                System.out.println("[COMPRESS - BMP] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
+                client.putItem(CompressObj.generateRequest(tableName, "bmp", finalSlope, finalOrigin, numberMeasures));
+                
+                objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
+                bmpImages.clear();
+                
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on BMP");
+            } else {
+                System.out.println("Could not get lock");
             }
+            
+        } catch (Exception e ) {
+            //e.printStackTrace();
         }
-
-        List<Double> x = new ArrayList<Double>();
-        List<Double> y = new ArrayList<Double>();
-
-        int x_temp = bmpImages.get(0).getHeight();
-        boolean enough_points = false;
-        for(CompressObj obj : bmpImages) {
-            if(obj.getHeight() != x_temp) enough_points = true; 
-            x.add(obj.getHeight().doubleValue());
-            y.add(obj.getInstructions().doubleValue());
-        }
-
-        if (!enough_points) return;
-
-        LinearRegression regression = new LinearRegression(x, y);
-        regression.calculateRegression();
-
-        Double newSlope = regression.getSlope();
-        Double newOrigin = regression.getOrigin();
-        System.out.println("NEW SLOPE: " + newSlope);
-        System.out.println("NEW ORIGIN: " + newOrigin);
-
-        Integer numberMeasures = nr_previous.get("bmp")+bmpImages.size();
-        Double finalSlope = (newSlope * bmpImages.size() + previousSlope.get("bmp") * nr_previous.get("bmp")) / numberMeasures;
-        Double finalOrigin = (newOrigin * bmpImages.size() + previousOrigin.get("bmp") * nr_previous.get("bmp")) / numberMeasures;
-        System.out.println("[COMPRESS - BMP] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
-        client.putItem(CompressObj.generateRequest(tableName, "bmp", finalSlope, finalOrigin, numberMeasures));
-        
-        objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-        bmpImages.clear();
     }
 
 
 
     public static void updateJPG() {
-        if(!objsToSave.containsKey(CompressObj.endpoint)) {
-            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-            return;
-        }
 
-        HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
-        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
+        try {
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder("compressjpeg").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on JPG");
 
-        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
-        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
-        List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+                HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
+                HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+                HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
-        for(String t : formats) {
-            sumEachSlope.put(t, 0.0);
-            sumEachOrigin.put(t, 0.0);
-            totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0.0);
-            previousOrigin.put(t, 0.0);
-            nr_previous.put(t, 0);
-        }
+                HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+                HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
+                List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+
+                List<String> formats = Arrays.asList("bmp", "png", "jpeg"); 
+                for(String t : formats) {
+                    sumEachSlope.put(t, 0.0);
+                    sumEachOrigin.put(t, 0.0);
+                    totalMeasuresPerWorld.add(0);
+                    previousSlope.put(t, 0.0);
+                    previousOrigin.put(t, 0.0);
+                    nr_previous.put(t, 0);
+                }
 
 
-        for(String f : formats) {
-            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
-            List<Map<String,AttributeValue>> listItems = sr.getItems();
-            for(Map<String,AttributeValue> itemAttributes : listItems) {
-                String format = itemAttributes.get("format").getS();
-                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
-                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
-                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                nr_previous.put(format, previous_runs);
-                previousSlope.put(format, previous_slope);
-                previousOrigin.put(format, previous_origin);
+                for(String f : formats) {
+                    ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+                    List<Map<String,AttributeValue>> listItems = sr.getItems();
+                    for(Map<String,AttributeValue> itemAttributes : listItems) {
+                        String format = itemAttributes.get("format").getS();
+                        Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                        Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                        int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                        nr_previous.put(format, previous_runs);
+                        previousSlope.put(format, previous_slope);
+                        previousOrigin.put(format, previous_origin);
+                    }
+                }
+
+                List<Double> x = new ArrayList<Double>();
+                List<Double> y = new ArrayList<Double>();
+
+                int x_temp = jpgImages.get(0).getPixels();
+                boolean enough_points = false;
+                for(CompressObj obj : jpgImages) {
+                    if(obj.getPixels() != x_temp) enough_points = true;
+                    x.add(obj.getPixels().doubleValue());
+                    y.add(obj.getInstructions().doubleValue());
+                }
+
+                if(!enough_points){
+                    lockClient.releaseLock(lockItem.get());
+                    System.out.println("RELEASED Lock on JPG");
+                    return;
+                } 
+
+                LinearRegression regression = new LinearRegression(x, y);
+                regression.calculateRegression();
+
+                Double newSlope = regression.getSlope();
+                Double newOrigin = regression.getOrigin();
+
+                Integer numberMeasures = nr_previous.get("jpeg")+jpgImages.size();
+                Double finalSlope = (newSlope * jpgImages.size() + previousSlope.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
+                Double finalOrigin = (newOrigin * jpgImages.size() + previousOrigin.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
+                System.out.println("[COMPRESS - JPG] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
+                client.putItem(CompressObj.generateRequest(tableName, "jpeg", finalSlope, finalOrigin, numberMeasures));
+                
+                objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
+                jpgImages.clear();
+
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on JPG");
+            } else {
+                System.out.println("Could not get lock");
             }
+            
+        } catch (Exception e ) {
+            //e.printStackTrace();
         }
-
-        List<Double> x = new ArrayList<Double>();
-        List<Double> y = new ArrayList<Double>();
-
-        int x_temp = jpgImages.get(0).getPixels();
-        boolean enough_points = false;
-        for(CompressObj obj : jpgImages) {
-            if(obj.getPixels() != x_temp) enough_points = true;
-            x.add(obj.getPixels().doubleValue());
-            y.add(obj.getInstructions().doubleValue());
-        }
-
-        if(!enough_points) return;
-
-        LinearRegression regression = new LinearRegression(x, y);
-        regression.calculateRegression();
-
-        Double newSlope = regression.getSlope();
-        Double newOrigin = regression.getOrigin();
-
-        Integer numberMeasures = nr_previous.get("jpeg")+jpgImages.size();
-        Double finalSlope = (newSlope * jpgImages.size() + previousSlope.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
-        Double finalOrigin = (newOrigin * jpgImages.size() + previousOrigin.get("jpeg") * nr_previous.get("jpeg")) / numberMeasures;
-        System.out.println("[COMPRESS - JPG] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
-        client.putItem(CompressObj.generateRequest(tableName, "jpeg", finalSlope, finalOrigin, numberMeasures));
-        
-        objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-        jpgImages.clear();
     }
 
 
 
 
     public static void updatePNG() {
-        if(!objsToSave.containsKey(CompressObj.endpoint)) {
-            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-            return;
-        }
 
-        HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
-        HashMap<String, Double> previousSlope = new HashMap<String, Double>();
-        HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
+        try {
 
-        HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
-        HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
-        List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder("compresspng").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on PNG");
 
-        List<String> formats = Arrays.asList("bmp", "png", "jpeg"); //TODO: check formats
-        for(String t : formats) {
-            sumEachSlope.put(t, 0.0);
-            sumEachOrigin.put(t, 0.0);
-            totalMeasuresPerWorld.add(0);
-            previousSlope.put(t, 0.0);
-            previousOrigin.put(t, 0.0);
-            nr_previous.put(t, 0);
-        }
+                HashMap<String, Integer> nr_previous = new HashMap<String, Integer>();
+                HashMap<String, Double> previousSlope = new HashMap<String, Double>();
+                HashMap<String, Double> previousOrigin = new HashMap<String, Double>();
 
-        
+                HashMap<String, Double> sumEachSlope = new HashMap<String, Double>();
+                HashMap<String, Double> sumEachOrigin = new HashMap<String, Double>();
+                List<Integer> totalMeasuresPerWorld = new ArrayList<Integer>();
 
-        for(String f : formats) {
-            ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
-            List<Map<String,AttributeValue>> listItems = sr.getItems();
-            for(Map<String,AttributeValue> itemAttributes : listItems) {
-                String format = itemAttributes.get("format").getS();
-                Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
-                Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
-                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                nr_previous.put(format, previous_runs);
-                previousSlope.put(format, previous_slope);
-                previousOrigin.put(format, previous_origin);
+                List<String> formats = Arrays.asList("bmp", "png", "jpeg"); 
+                for(String t : formats) {
+                    sumEachSlope.put(t, 0.0);
+                    sumEachOrigin.put(t, 0.0);
+                    totalMeasuresPerWorld.add(0);
+                    previousSlope.put(t, 0.0);
+                    previousOrigin.put(t, 0.0);
+                    nr_previous.put(t, 0);
+                }
+
+                
+
+                for(String f : formats) {
+                    ScanResult sr = getItemsForEndpoint(CompressObj.endpoint+f);
+                    List<Map<String,AttributeValue>> listItems = sr.getItems();
+                    for(Map<String,AttributeValue> itemAttributes : listItems) {
+                        String format = itemAttributes.get("format").getS();
+                        Double previous_slope = Double.parseDouble(itemAttributes.get("slope").getN());
+                        Double previous_origin = Double.parseDouble(itemAttributes.get("origin").getN());
+                        int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                        nr_previous.put(format, previous_runs);
+                        previousSlope.put(format, previous_slope);
+                        previousOrigin.put(format, previous_origin);
+                    }
+                }
+
+                List<Double> x = new ArrayList<Double>();
+                List<Double> y = new ArrayList<Double>();
+
+                int x_temp = pngImages.get(0).getPixels();
+                boolean enough_points = false;
+                for(CompressObj obj : pngImages) {
+                    if(obj.getPixels() != x_temp) enough_points = true;
+                    x.add(obj.getPixels().doubleValue());
+                    y.add(obj.getInstructions().doubleValue());
+                }
+                if(!enough_points){
+                    lockClient.releaseLock(lockItem.get());
+                    System.out.println("RELEASED Lock on PNG");
+                    return;
+                } 
+
+                LinearRegression regression = new LinearRegression(x, y);
+                regression.calculateRegression();
+
+                Double newSlope = regression.getSlope();
+                Double newOrigin = regression.getOrigin();
+                System.out.println("NEW SLOPE: " + newSlope);
+                System.out.println("NEW ORIGIN: " + newOrigin);
+
+                Integer numberMeasures = nr_previous.get("png")+pngImages.size();
+                Double finalSlope = (newSlope * pngImages.size() + previousSlope.get("png") * nr_previous.get("png")) / numberMeasures;
+                Double finalOrigin = (newOrigin * pngImages.size() + previousOrigin.get("png") * nr_previous.get("png")) / numberMeasures;
+                System.out.println("[COMPRESS - PNG] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
+                client.putItem(CompressObj.generateRequest(tableName, "png", finalSlope, finalOrigin, numberMeasures));
+                
+                objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
+                pngImages.clear();
+                
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on PNG");
+            } else {
+                System.out.println("Could not get lock");
             }
+            
+        } catch (Exception e ) {
+            //e.printStackTrace();
         }
-
-        List<Double> x = new ArrayList<Double>();
-        List<Double> y = new ArrayList<Double>();
-
-        int x_temp = pngImages.get(0).getPixels();
-        boolean enough_points = false;
-        for(CompressObj obj : pngImages) {
-            if(obj.getPixels() != x_temp) enough_points = true;
-            x.add(obj.getPixels().doubleValue());
-            y.add(obj.getInstructions().doubleValue());
-        }
-        if(!enough_points) return;
-
-        LinearRegression regression = new LinearRegression(x, y);
-        regression.calculateRegression();
-
-        Double newSlope = regression.getSlope();
-        Double newOrigin = regression.getOrigin();
-        System.out.println("NEW SLOPE: " + newSlope);
-        System.out.println("NEW ORIGIN: " + newOrigin);
-
-        Integer numberMeasures = nr_previous.get("png")+pngImages.size();
-        Double finalSlope = (newSlope * pngImages.size() + previousSlope.get("png") * nr_previous.get("png")) / numberMeasures;
-        Double finalOrigin = (newOrigin * pngImages.size() + previousOrigin.get("png") * nr_previous.get("png")) / numberMeasures;
-        System.out.println("[COMPRESS - PNG] NEW SLOPE "+ finalSlope + " NEW INTERCEPT " + finalOrigin);
-        client.putItem(CompressObj.generateRequest(tableName, "png", finalSlope, finalOrigin, numberMeasures));
-        
-        objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
-        pngImages.clear();
     }
 
 
 
 
     public static void updateFoxesRabbits() {
+
+        try {
+
+            final Optional<LockItem> lockItem =
+                    Optional.ofNullable(lockClient.acquireLock(AcquireLockOptions.builder(FoxRabbitObj.endpoint+"1").build()));
+            
+            if (lockItem.isPresent()) {
+                System.out.println("GOT Lock on FoxesRabbits");
+                if(!objsToSave.containsKey(FoxRabbitObj.endpoint)) {
+                    objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+                    lockClient.releaseLock(lockItem.get());
+                    System.out.println("RELEASED Lock on FoxesRabbits");
+                    return;
+                }
+
+                HashMap<Integer, Integer> nr_previous = new HashMap<Integer, Integer>();
+                HashMap<Integer, Double> previousMetric = new HashMap<Integer, Double>();
+                HashMap<Integer, Double> sumEachWorld = new HashMap<Integer, Double>();
+                HashMap<Integer, Integer> totalMeasuresPerWorld = new HashMap<Integer, Integer>();
+                for(int n_world = 1; n_world <= 4; n_world++) {
+                    sumEachWorld.put(n_world, 0.0);
+                    totalMeasuresPerWorld.put(n_world, 0);
+                    previousMetric.put(n_world, 0.0);
+                    nr_previous.put(n_world, 0);
+                }
+
+                for(int n_world = 1; n_world <= 4; n_world++) {
+                    ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint + String.valueOf(n_world));
+                    List<Map<String,AttributeValue>> listItems = sr.getItems();
+
+                    for(Map<String,AttributeValue> itemAttributes : listItems) {
+                        int wrld = Integer.parseInt(itemAttributes.get("world").getN());
+                        int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                        Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
+                        nr_previous.put(wrld, previous_runs);
+                        previousMetric.put(wrld, previous_metric);
+                    }
+                }
+
+                for(AbstractMetricObj obj : objsToSave.get(FoxRabbitObj.endpoint)) {
+                    if (obj instanceof FoxRabbitObj) {
+                        FoxRabbitObj fR = (FoxRabbitObj) obj;
+                        sumEachWorld.put(fR.getWorld(), sumEachWorld.get(fR.getWorld()) + fR.getWeight());
+                        totalMeasuresPerWorld.put(fR.getWorld(), totalMeasuresPerWorld.get(fR.getWorld())+1);
+                    }
+                }
+
+                for(int n_world = 1; n_world <= 4; n_world++) {
+                    //System.out.println(String.format("============= [FOXRABBIT - WORLD] ==============="));
+                    //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
+                    //System.out.println(String.format("totalMeasuresPerWorld = %d", totalMeasuresPerWorld.get(n_world)));
+
+                    Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world);
+                    //System.out.println(String.format("numberMeasures = %d", numberMeasures));
+
+                    int actualMeasures = numberMeasures;
+                    if (numberMeasures == 0) numberMeasures = 1;
+                    Double finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
+                    //System.out.println(String.format("sumEachWorld = %d", sumEachWorld.get(n_world)));
+                    //System.out.println(String.format("previousMetric = %d", previousMetric.get(n_world)));
+                    //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
         
-        if(!objsToSave.containsKey(FoxRabbitObj.endpoint)) {
-            objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
-            return;
-        }
+                    //System.out.println("[FOXRABBIT - WORLD "+ n_world + "]NEW STATISTIC "+ finalStat);
+                    client.putItem(FoxRabbitObj.generateRequest(tableName, actualMeasures, n_world, finalStat));
+                }
 
-        HashMap<Integer, Integer> nr_previous = new HashMap<Integer, Integer>();
-        HashMap<Integer, Double> previousMetric = new HashMap<Integer, Double>();
-        HashMap<Integer, Double> sumEachWorld = new HashMap<Integer, Double>();
-        HashMap<Integer, Integer> totalMeasuresPerWorld = new HashMap<Integer, Integer>();
-        for(int n_world = 1; n_world <= 4; n_world++) {
-            sumEachWorld.put(n_world, 0.0);
-            totalMeasuresPerWorld.put(n_world, 0);
-            previousMetric.put(n_world, 0.0);
-            nr_previous.put(n_world, 0);
-        }
-
-        for(int n_world = 1; n_world <= 4; n_world++) {
-            ScanResult sr = getItemsForEndpoint(FoxRabbitObj.endpoint + String.valueOf(n_world));
-            List<Map<String,AttributeValue>> listItems = sr.getItems();
-
-            for(Map<String,AttributeValue> itemAttributes : listItems) {
-                int wrld = Integer.parseInt(itemAttributes.get("world").getN());
-                int previous_runs = Integer.parseInt(itemAttributes.get("nr_previous").getN());
-                Double previous_metric = Double.parseDouble(itemAttributes.get("statistic").getN());
-                nr_previous.put(wrld, previous_runs);
-                previousMetric.put(wrld, previous_metric);
+                objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+                
+                lockClient.releaseLock(lockItem.get());
+                System.out.println("RELEASED Lock on FoxesRabbits");
+            } else {
+                System.out.println("Could not get lock");
             }
+    
+        } catch (Exception e) {
+            //e.printStackTrace();
         }
-
-        for(AbstractMetricObj obj : objsToSave.get(FoxRabbitObj.endpoint)) {
-            if (obj instanceof FoxRabbitObj) {
-                FoxRabbitObj fR = (FoxRabbitObj) obj;
-                sumEachWorld.put(fR.getWorld(), sumEachWorld.get(fR.getWorld()) + fR.getWeight());
-                totalMeasuresPerWorld.put(fR.getWorld(), totalMeasuresPerWorld.get(fR.getWorld())+1);
-            }
-        }
-
-        for(int n_world = 1; n_world <= 4; n_world++) {
-            //System.out.println(String.format("============= [FOXRABBIT - WORLD] ==============="));
-            //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
-            //System.out.println(String.format("totalMeasuresPerWorld = %d", totalMeasuresPerWorld.get(n_world)));
-
-            Integer numberMeasures = nr_previous.get(n_world)+totalMeasuresPerWorld.get(n_world);
-            //System.out.println(String.format("numberMeasures = %d", numberMeasures));
-
-            int actualMeasures = numberMeasures;
-            if (numberMeasures == 0) numberMeasures = 1;
-            Double finalStat = (sumEachWorld.get(n_world) + previousMetric.get(n_world) * nr_previous.get(n_world)) / numberMeasures;
-            //System.out.println(String.format("sumEachWorld = %d", sumEachWorld.get(n_world)));
-            //System.out.println(String.format("previousMetric = %d", previousMetric.get(n_world)));
-            //System.out.println(String.format("nr_previous = %d", nr_previous.get(n_world)));
- 
-            //System.out.println("[FOXRABBIT - WORLD "+ n_world + "]NEW STATISTIC "+ finalStat);
-            client.putItem(FoxRabbitObj.generateRequest(tableName, actualMeasures, n_world, finalStat));
-        }
-
-        objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
     }
 
  // =====================================================================
@@ -855,15 +1062,15 @@ public class MetricsDB {
             Double previous_perround = Double.parseDouble(itemAttributes.get("roundincreasewhenarmyequal").getN());
             Double previous_perarmy = Double.parseDouble(itemAttributes.get("round1perarmysize").getN());
             System.out.println("INSECT GOT Previous PerRound-"+ previous_perround + " PerArmy-" + previous_perarmy);
-            metrics.add(0, previous_perround);
-            metrics.add(1, previous_perarmy);
+            metrics.set(0, previous_perround);
+            metrics.set(1, previous_perarmy);
         }
 
         return metrics;
     }
 
     public static ArrayList<Double> getPerArmyRatio() {
-        for(int i = 0; i < perArmyRatio.size(); i++) {
+        /* for(int i = 0; i < perArmyRatio.size(); i++) {
             ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint + String.valueOf(i));
             List<Map<String,AttributeValue>> listItems = sr.getItems();
 
@@ -872,7 +1079,20 @@ public class MetricsDB {
                 System.out.println("INSECT GOT PerArmyRatio-"+ r + " in index-" + i);
                 perArmyRatio.add(i, r);
             }
+        } */
+
+        ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint + "ratio");
+        List<Map<String,AttributeValue>> listItems = sr.getItems();
+        for(Map<String,AttributeValue> itemAttributes : listItems) {
+            for(int i = 0; i < perArmyRatio.size(); i++) {
+                Double r = Double.parseDouble(itemAttributes.get("perArmyRatio"+String.valueOf(i)).getN());
+                Integer c = Integer.parseInt(itemAttributes.get("nr_previous"+String.valueOf(i)).getN());
+                System.out.println("INSECT GOT PerArmyRatio-"+ r + " with count-" + c + " in index-" + i);
+                perArmyRatio.set(i, r);
+                perArmyRatioCount.set(i, c);
+            }
         }
+
         return perArmyRatio;
     }
 

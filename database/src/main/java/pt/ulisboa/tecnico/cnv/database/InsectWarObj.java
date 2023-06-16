@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.cnv.database;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,6 +49,21 @@ public class InsectWarObj extends AbstractMetricObj {
         itemValues.put("endpoint", new AttributeValue("war"+String.valueOf(index)));
         itemValues.put("perArmyRatio", new AttributeValue().withN(Double.toString(perArmyRatio)));
         itemValues.put("nr_previous", new AttributeValue().withN(Integer.toString(count)));
+
+        //TODO: MAYBE? itemValues.put("instrarmyratio", new AttributeValue().withN(Double.toString(instrarmyratio)));
+        //itemValues.put("nr_previous", new AttributeValue().withN(Long.toString(nr_previous)));
+        return new PutItemRequest(tableName, itemValues);
+    }
+
+    public static PutItemRequest generateOneRatioRequest(String tableName, ArrayList<Double> ratioList, ArrayList<Integer> ratioCount) {
+        //TODO: What is actually the metric
+        Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
+        itemValues.put("endpoint", new AttributeValue("warratio"));
+        for(int i = 0; i < ratioList.size(); i++) {
+            itemValues.put("perArmyRatio"+String.valueOf(i), new AttributeValue().withN(Double.toString(ratioList.get(i))));
+            itemValues.put("nr_previous"+String.valueOf(i), new AttributeValue().withN(Integer.toString(ratioCount.get(i))));
+        }
+        
 
         //TODO: MAYBE? itemValues.put("instrarmyratio", new AttributeValue().withN(Double.toString(instrarmyratio)));
         //itemValues.put("nr_previous", new AttributeValue().withN(Long.toString(nr_previous)));
