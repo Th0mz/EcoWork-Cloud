@@ -78,6 +78,7 @@ public class MetricsDB {
 
     private static Double storedLastPerRound = 300000.0;
     private static Double storedLastPerArmy = 1.0;
+    private static Double insect111Value = 900502.0;
     
 
     public MetricsDB() {
@@ -115,6 +116,8 @@ public class MetricsDB {
 
         //MetricsDB.saveMetric(new InsectWarObj(1, 2, 2, 4000));
         //MetricsDB.saveMetric(new InsectWarObj(4, 2, 2, 1804000));
+
+        //MetricsDB.saveMetric(new InsectWarObj(1, 10, 11, 9603536));
 
 
         updateAllMetrics();
@@ -172,6 +175,10 @@ public class MetricsDB {
 
             client.putItem(InsectWarObj.generateRequest(tableName, 1, 1.0, 
                 1, 300000.0));
+            
+            for(int i = 0; i < differentArmySizeList.size(); i++) {
+                client.putItem(InsectWarObj.generateRatioRequest(tableName, i, perArmyRatio.get(i), 1));
+            }
 
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 1, 9000.0));
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 2, 30000.0));
@@ -418,6 +425,73 @@ public class MetricsDB {
         System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
         client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
                 nr_finalPerRound, finalPerRound));
+
+        //Also update the Ratios of instr/armyratio
+        HashMap<Integer, Double> sumPerIndex = new HashMap<Integer, Double>();
+        HashMap<Integer, Integer> countPerIndex = new HashMap<Integer, Integer>();
+        
+        for(InsectWarObj obj : differentArmySizeList) {
+            int army1 = obj.getArmy1();
+            int army2 = obj.getArmy2();
+            int round = obj.getMax();
+            System.out.println(String.format("Updating based on (%d, %d, %d)", round, army1, army2));
+            Double value = insect111Value;
+            if (army1==army2) continue;
+            if (army2 < army1) {
+                value = value * (finalPerArmy*army2);
+                value = value + finalPerRound * army2 * (round-1);
+                int index = (int) (((army1*1.0/army2) - 1) / 0.1) - 1;
+                if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+                Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army1*1.0/army2));
+                //Double afterApplyingRatio = value * perArmyRatio.get(index) * (army1/army2);
+
+                if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
+                sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
+
+                if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
+                countPerIndex.put(index, countPerIndex.get(index) + 1);
+            } 
+            else { //army1 < army2
+                value = value * (finalPerArmy*army1);
+                value = value + finalPerRound * army1 * (round-1);
+                int index = (int) (((army2*1.0/army1) - 1) / 0.1) - 1;
+                if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+                //value = value * perArmyRatio.get(index) * (army2/army1);
+                Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army2*1.0/army1));
+                System.out.println(String.format("Number instr: %d | previousStep: %f | ratio: %f", obj.getInstructions(), value, army2*1.0/army1));
+                System.out.println(String.format("Calculated ratio is %f (index %d)", calculatedRatio, index));
+                
+                if(!sumPerIndex.containsKey(index)) sumPerIndex.put(index, 0.0);
+                sumPerIndex.put(index, sumPerIndex.get(index) + calculatedRatio);
+
+                if(!countPerIndex.containsKey(index)) countPerIndex.put(index, 0);
+                countPerIndex.put(index, countPerIndex.get(index) + 1);
+
+            }
+        }
+
+        for(Integer index : countPerIndex.keySet()) {
+            ScanResult res = getItemsForEndpoint(InsectWarObj.endpoint + String.valueOf(index));
+            List<Map<String,AttributeValue>> listOfRatios = res.getItems();
+            System.out.println(String.format("Get items with key %s", InsectWarObj.endpoint + String.valueOf(index)));
+
+            Integer totalCount = countPerIndex.get(index);
+            Double totalSum = sumPerIndex.get(index);
+
+            for(Map<String,AttributeValue> itemAttributes : listOfRatios) {
+                Double storedRatio = Double.parseDouble(itemAttributes.get("perArmyRatio").getN());
+                Integer numberStored = Integer.parseInt(itemAttributes.get("nr_previous").getN());
+                totalCount += numberStored;
+                totalSum += (storedRatio * numberStored);
+                System.out.println(String.format("storedRatio-%f numberStored-%d totalCount-%d totalSum-%f", 
+                    storedRatio, numberStored, totalCount, totalSum));
+            }
+            Double totalRatio = totalSum / totalCount;
+            System.out.println(String.format("Total ratio-%f", totalRatio));
+            client.putItem(InsectWarObj.generateRatioRequest(tableName, index, totalRatio, totalCount));
+        }
+
+        differentArmySizeList.clear();
 
         objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
         roundOneEqualArmy.clear();

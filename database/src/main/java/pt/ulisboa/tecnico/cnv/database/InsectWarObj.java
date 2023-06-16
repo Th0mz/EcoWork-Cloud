@@ -41,4 +41,16 @@ public class InsectWarObj extends AbstractMetricObj {
         //itemValues.put("nr_previous", new AttributeValue().withN(Long.toString(nr_previous)));
         return new PutItemRequest(tableName, itemValues);
     }
+
+    public static PutItemRequest generateRatioRequest(String tableName, int index, Double perArmyRatio, int count) {
+        //TODO: What is actually the metric
+        Map<String, AttributeValue> itemValues = new HashMap<String, AttributeValue>();
+        itemValues.put("endpoint", new AttributeValue("war"+String.valueOf(index)));
+        itemValues.put("perArmyRatio", new AttributeValue().withN(Double.toString(perArmyRatio)));
+        itemValues.put("nr_previous", new AttributeValue().withN(Integer.toString(count)));
+
+        //TODO: MAYBE? itemValues.put("instrarmyratio", new AttributeValue().withN(Double.toString(instrarmyratio)));
+        //itemValues.put("nr_previous", new AttributeValue().withN(Long.toString(nr_previous)));
+        return new PutItemRequest(tableName, itemValues);
+    }
 }
