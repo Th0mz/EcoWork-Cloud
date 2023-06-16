@@ -64,7 +64,6 @@ public class MetricsDB {
     private static Map<Integer,  Map<Integer, InsectWarObj>> samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
     private static List<InsectWarObj> roundOneEqualArmy = new ArrayList<InsectWarObj>();
     private static List<InsectWarObj> differentArmySizeList = new ArrayList<InsectWarObj>();
-    private static Double roundOneArmyOneInstr = 1000.0;
     private static ArrayList<Double> perArmyRatio = new ArrayList<Double>(
             Arrays.asList(0.954545, 0.960315, 0.965033, 0.968942, 0.97222, 0.974998, 0.977374, 0.979422, 0.981202, 0.982757, 
             0.984126, 0.985336, 0.986412, 0.987373, 0.988234, 0.98901, 0.989711, 0.990347, 0.990925, 0.991452, 
@@ -108,8 +107,8 @@ public class MetricsDB {
         //MetricsDB.saveMetric(new CompressObj("bmp", "0.4", 5, 7, 290L));
         //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 6, 8, 302L));
         //MetricsDB.saveMetric(new CompressObj("bmp", "0.5", 7, 9, 340L));
-        //MetricsDB.saveMetric(new InsectWarObj(1, 5, 5, 10000));
-        //MetricsDB.saveMetric(new InsectWarObj(2, 5, 5, 1510000));
+        MetricsDB.saveMetric(new InsectWarObj(1, 10, 10, 1310000));
+        MetricsDB.saveMetric(new InsectWarObj(2, 10, 10, 1510000));
 
         //MetricsDB.saveMetric(new InsectWarObj(1, 3, 3, 6000));
         //MetricsDB.saveMetric(new InsectWarObj(2, 3, 3, 306000));
@@ -124,6 +123,7 @@ public class MetricsDB {
         getCompressMetrics();
         getFoxRabbitMetrics();
         getInsectWarMetrics();
+        //getPerArmyRatio();
 
 
         //MetricsDB.saveMetric(new FoxRabbitObj(10, 3, 1, 5000));
@@ -157,16 +157,21 @@ public class MetricsDB {
             /* Table table = dynamoDB.createTable(createTableRequest);
             table.waitForActive(); */
             // Create table if it does not exist yet
-            TableUtils.createTableIfNotExists(client, createTableRequest);
+            boolean createdNewTable = TableUtils.createTableIfNotExists(client, createTableRequest);
+            
             // wait for the table to move into ACTIVE state
             TableUtils.waitUntilActive(client, tableName);
-
-
 
             // Describe our new table
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
             TableDescription tableDescription = client.describeTable(describeTableRequest).getTable();
             System.out.println("Table Description: " + tableDescription);
+            
+            objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
+            objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
+            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
+
+            if(!createdNewTable) return;
 
             //Update initial metrics to the database
             client.putItem(CompressObj.generateRequest(tableName, "jpeg", 0.02, 14000.0, 1));
@@ -176,7 +181,7 @@ public class MetricsDB {
             client.putItem(InsectWarObj.generateRequest(tableName, 1, 1.0, 
                 1, 300000.0));
             
-            for(int i = 0; i < differentArmySizeList.size(); i++) {
+            for(int i = 0; i < perArmyRatio.size(); i++) {
                 client.putItem(InsectWarObj.generateRatioRequest(tableName, i, perArmyRatio.get(i), 1));
             }
 
@@ -184,10 +189,6 @@ public class MetricsDB {
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 2, 30000.0));
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 3, 110000.0));
             client.putItem(FoxRabbitObj.generateRequest(tableName, 1, 4, 250000.0));
-
-            objsToSave.put(FoxRabbitObj.endpoint, new ArrayList<AbstractMetricObj>());
-            objsToSave.put(InsectWarObj.endpoint, new ArrayList<AbstractMetricObj>());
-            objsToSave.put(CompressObj.endpoint, new ArrayList<AbstractMetricObj>());
 
         } catch (AmazonServiceException ase) {
             System.out.println("Caught an AmazonServiceException, which means your request made it "
@@ -345,30 +346,36 @@ public class MetricsDB {
         // when armies are equal
         int nr_measures = 0;
         Double estimatePerRound = 0.0;
-        List<InsectWarObj> roundOneBaselines = new ArrayList<InsectWarObj>();
+        //List<InsectWarObj> roundOneBaselines = new ArrayList<InsectWarObj>();
         for (Integer armySize : samearmysize.keySet()) {
             if (samearmysize.get(armySize).size() > 1) {
+                List<Integer> toRemove = new ArrayList<Integer>();
                 for (InsectWarObj obj1 : samearmysize.get(armySize).values()) {
                     if (obj1.getMax() != 1) continue;
-                    roundOneBaselines.add(obj1);
+                    //roundOneBaselines.add(obj1);
                     for (InsectWarObj obj2 : samearmysize.get(armySize).values()) {
                         if (obj1.getMax() == obj2.getMax()) continue;
                         nr_measures++;
                         int roundDif = obj2.getMax() - obj1.getMax();
                         Long instrDif = obj2.getInstructions() - obj1.getInstructions();
                         Double functionOfRound = instrDif*1.0 / (armySize*roundDif*1.0);
+                        System.out.println("GETS HERE!!!");
+                        toRemove.add(obj2.getMax());
                         estimatePerRound += functionOfRound;
                     }
+                }
+                for(Integer key : toRemove) {
+                    samearmysize.get(armySize).remove(key);
                 }
             }
         }
         //first index for army size, second index for round number 
-        samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
+        /* samearmysize = new HashMap<Integer, Map<Integer, InsectWarObj>>();
         for(InsectWarObj obj : roundOneBaselines) {
             if(!samearmysize.containsKey(obj.getArmy1()))
                 samearmysize.put(obj.getArmy1(), new HashMap<Integer, InsectWarObj>());
             samearmysize.get(obj.getArmy1()).put(obj.getMax(), obj);
-        }
+        } */
 
 
         //Calculus of per army size variation as a function of round,
@@ -380,7 +387,7 @@ public class MetricsDB {
             System.out.println("OBJ1 Army: " + obj1.getArmy1());
 
             Double armyRatio =  obj1.getArmy1()*1.0/1.0; //army1 is the baseline for comparison
-            Double instrRatio = obj1.getInstructions()*1.0/roundOneArmyOneInstr;
+            Double instrRatio = obj1.getInstructions()*1.0/insect111Value;
             Double functionOfArmy = instrRatio/armyRatio;
             estimatePerArmy += functionOfArmy;
             nr_measures_roundone++;
@@ -423,6 +430,7 @@ public class MetricsDB {
         storedLastPerArmy = finalPerArmy;
         storedLastPerRound = finalPerRound;
         System.out.println(String.format("[INSECTWAR] NEW STATISTIC: PERROUND-%f PERARMY-%f", finalPerRound, finalPerArmy));
+        System.out.println(String.format("PERROUND-%d", nr_finalPerRound));
         client.putItem(InsectWarObj.generateRequest(tableName, nr_finalPerArmy, finalPerArmy, 
                 nr_finalPerRound, finalPerRound));
 
@@ -441,7 +449,7 @@ public class MetricsDB {
                 value = value * (finalPerArmy*army2);
                 value = value + finalPerRound * army2 * (round-1);
                 int index = (int) (((army1*1.0/army2) - 1) / 0.1) - 1;
-                if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+                if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
                 Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army1*1.0/army2));
                 //Double afterApplyingRatio = value * perArmyRatio.get(index) * (army1/army2);
 
@@ -455,7 +463,7 @@ public class MetricsDB {
                 value = value * (finalPerArmy*army1);
                 value = value + finalPerRound * army1 * (round-1);
                 int index = (int) (((army2*1.0/army1) - 1) / 0.1) - 1;
-                if(index > 89) index = 89; //there are only 89 ratios stored, after that the change is irrelevant
+                if(index > 88) index = 88; //there are only 89 ratios stored, after that the change is irrelevant
                 //value = value * perArmyRatio.get(index) * (army2/army1);
                 Double calculatedRatio = obj.getInstructions()*1.0 / (value * (army2*1.0/army1));
                 System.out.println(String.format("Number instr: %d | previousStep: %f | ratio: %f", obj.getInstructions(), value, army2*1.0/army1));
@@ -855,6 +863,16 @@ public class MetricsDB {
     }
 
     public static ArrayList<Double> getPerArmyRatio() {
+        for(int i = 0; i < perArmyRatio.size(); i++) {
+            ScanResult sr = getItemsForEndpoint(InsectWarObj.endpoint + String.valueOf(i));
+            List<Map<String,AttributeValue>> listItems = sr.getItems();
+
+            for(Map<String,AttributeValue> itemAttributes : listItems) {
+                Double r = Double.parseDouble(itemAttributes.get("perArmyRatio").getN());
+                System.out.println("INSECT GOT PerArmyRatio-"+ r + " in index-" + i);
+                perArmyRatio.add(i, r);
+            }
+        }
         return perArmyRatio;
     }
 
