@@ -3,6 +3,7 @@ package pt.ulisboa.tecnico.cnv;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.CompressRequest;
+import pt.ulisboa.tecnico.cnv.requests.Request;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
@@ -23,15 +24,16 @@ import java.net.URL;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.ArrayList;
+import java.util.TimerTask;
 
 
 public class LBCompressImageHandler implements HttpHandler {
 
     private SystemState state;
     private final String path = "/compressimage";
-
-    // TODO - FOR TEST - DELETE FOR FINAL
-    public static int test = 1;
+    private Timer timer = new Timer();
 
     public LBCompressImageHandler(SystemState state) {
         this.state = state;
@@ -72,10 +74,13 @@ public class LBCompressImageHandler implements HttpHandler {
         Long cost = calculateCost(targetFormat, height, height*height).longValue();
         CompressRequest request = new CompressRequest(requestBody, cost, exchange);
 
-        if (test > 0) {
+        String whereToExecute = chooseProcessor(request);
+        if (whereToExecute.equals("Worker")) {
+
+            System.out.println("sending request");
             sendRequest(request);
-            test--;
-        } else {
+
+        } else if (whereToExecute.equals("Lambda")) {
             String functionName = "compression-lambda";
             String jsonArgs = String.format("{\"body\":\"%s\",\"compressionFactor\":\"%f\",\"targetFormat\":\"%s\"}",
                     resultSplits[1], Double.parseDouble(compressionFactor), targetFormat);
@@ -84,14 +89,72 @@ public class LBCompressImageHandler implements HttpHandler {
             AWSLambda awsLambda = AWSLambdaClientBuilder.standard().withCredentials(credentialsProvider).build();
             String response = invokeLambda(awsLambda, functionName, jsonArgs);
             awsLambda.shutdown();
+
+            //send response back
             byte[] output = String.format("data:image/%s;base64,%s", targetFormat, response).getBytes();
-            //JUST FOR TESTING, THEN REFACTOR
             exchange.sendResponseHeaders(200, output.length);
             OutputStream outputStream = exchange.getResponseBody();
             outputStream.write(output);
             outputStream.close();
+
+        } else  if (whereToExecute.equals("Wait")) {
+            System.out.println("[LB]: Request too big while instances launching, waiting ...");
+            timer.schedule(new WaitForWebserverTask(request, state.getPending()), 5000); 
+
+        }
+       
+    }
+
+    private String chooseProcessor(Request request){
+        double lastKnownAvg = this.state.getCPUAvg();
+        if(lastKnownAvg > 80 ) {
+            if (this.state. getPendingNr() > 0 && request.getCost() < 5000000){
+                //high cpu but small request -> lambda
+                return "Lambda";
+            } else if (this.state. getPendingNr() > 0 && request.getCost() > 10000000){
+                //high cpu but big request -> wait
+                return "Wait";
+            } else {
+                //high cpu average request -> assign to worker
+                return "Worker";
+            }
+        }
+        //normal case -> assign to worker
+        return "Worker";
+    }
+
+    private class WaitForWebserverTask extends TimerTask {
+        private CompressRequest request;
+        private ArrayList<String> pending;
+
+        public WaitForWebserverTask(CompressRequest request, ArrayList<String> pend) {
+            this.request = request;
+            this.pending = pend;
+        }
+
+        @Override
+        public void run() {
+            boolean canRun = false;
+            
+            for (String i: pending){
+                if (state.isRunning(i)) { 
+                    canRun = true;
+                    break;
+                }
+            }
+
+            if(canRun) { 
+                System.out.println("[LB]: Waiting request now sent...");
+                sendRequest(request); 
+            } 
+            else {
+                System.out.println("[LB]: Waiting request still waiting...");
+                WaitForWebserverTask task = new WaitForWebserverTask(this.request, this.pending);
+                timer.schedule(task, 5000);
+            }
         }
     }
+    
 
     public Double calculateCost(String format, int height, int pixels) {
         double slope = state.getCompressionMetrics().get(format).get(0);

@@ -45,6 +45,10 @@ public class AutoScaler extends TimerTask {
             sum += instance.getCPUAvg();
         }
 
+        //useful for choice of lambdas
+        _state.setCPUAvg(sum/count);
+
+
         //count + _state.getPending() TAKES INTO ACCOUNT INSTANCES STARTING UP 
         //PREVENTS KEEPING LAUNCHING INSTANCE WHEN PREVIOUS ONES ARE STILL LAUNCHING
         double avg = sum/(count + _state.getPendingNr());

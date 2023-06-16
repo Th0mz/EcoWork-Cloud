@@ -55,11 +55,14 @@ public class SystemState {
     private HashMap<String, List<Double>> compressionMetrics;
     private ArrayList<Double> insectWarMetrics;
     private ArrayList<Double> perArmyRatio;
+    private double cpuAvg;
 
     public HashMap<String, List<Double>> getCompressionMetrics() {return compressionMetrics;}
     public HashMap<Integer, Double> getFoxRabbitMetrics() {return foxRabbitMetrics;}
     public ArrayList<Double> getInsectWarMetrics() {return insectWarMetrics;}
     public ArrayList<Double> getPerArmyRatio() {return perArmyRatio;}
+    public double getCPUAvg() {return cpuAvg;}
+    public void setCPUAvg(double avg) {this.cpuAvg = avg;}
 
     public SystemState() {
 
@@ -108,6 +111,10 @@ public class SystemState {
         RetrieveDBMetricsTask metricsTask = new RetrieveDBMetricsTask();
         timer.scheduleAtFixedRate(metricsTask, 10000, DB_UPDATE * 1000);
 
+    }
+
+    public boolean isRunning(String id){
+        return this.runningInstances.containsKey(id);
     }
 
     public InstanceState getInstance() {
@@ -182,6 +189,11 @@ public class SystemState {
     public ArrayList<InstanceState> getRunningInstances() {
         //Does this need locks?
         return new ArrayList<>(this.runningInstances.values());
+    }
+
+    public ArrayList<String> getPending() {
+        //Does this need locks?
+        return new ArrayList<String>(this.pendingInstances.keySet());
     }
 
     public int getPendingNr(){
@@ -342,12 +354,15 @@ public class SystemState {
             this.instanceState = instanceState;
         }
 
+        public InstanceState getInstance() {return instanceState;}
+
         @Override
         public void run() {
 
             Boolean running = checkInstanceRunning(instanceState);
             if (running) {
                 // Webserver is running
+                instanceState.setRunning();
                 String instanceID = instanceState.getId();
                 runningInstances.put(instanceID, instanceState);
                 pendingInstances.remove(instanceID);

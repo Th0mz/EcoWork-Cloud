@@ -3,6 +3,7 @@ package pt.ulisboa.tecnico.cnv;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import pt.ulisboa.tecnico.cnv.requests.InsectWarsRequest;
+import pt.ulisboa.tecnico.cnv.requests.Request;
 import pt.ulisboa.tecnico.cnv.util.InstanceState;
 import pt.ulisboa.tecnico.cnv.util.SystemState;
 
@@ -25,16 +26,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.ArrayList;
+import java.util.TimerTask;
 
 
 public class LBWarSimulationHandler implements HttpHandler {
 
     private SystemState state;
     private final String path = "/insectwar";
-
-    // TODO - FOR TEST - DELETE FOR FINAL
-    public static int test = 1;
-
+    private Timer timer = new Timer();
+    
 
     public LBWarSimulationHandler(SystemState state) {
         this.state = state;
@@ -69,12 +71,14 @@ public class LBWarSimulationHandler implements HttpHandler {
         System.out.println("cost = " + cost);
 
         InsectWarsRequest request = new InsectWarsRequest(parameters, cost, exchange);
+        String whereToExecute = chooseProcessor(request);
+        if (whereToExecute.equals("Worker")) {
 
-        if (test > 0) {
             System.out.println("sending request");
             sendRequest(request);
-            test--;
-        } else {
+
+        } else if (whereToExecute.equals("Lambda")) {
+
             String functionName = "insectWar-lambda";
             String jsonArgs = String.format("{\"max\":\"%d\",\"army1\":\"%d\",\"army2\":\"%d\"}",
                     max, army1, army2);
@@ -84,14 +88,68 @@ public class LBWarSimulationHandler implements HttpHandler {
             byte[] response = invokeLambda(awsLambda, functionName, jsonArgs);
             awsLambda.shutdown();
 
-            //JUST FOR TESTING, THEN REFACTOR
+            //send response back
             exchange.sendResponseHeaders(200, response.length);
             OutputStream outputStream = exchange.getResponseBody();
             outputStream.write(response);
             outputStream.close();
+
+        } else  if (whereToExecute.equals("Wait")) {
+            System.out.println("[LB]: Request too big while instances launching, waiting ...");
+            timer.schedule(new WaitForWebserverTask(request, state.getPending()), 5000); 
         }
         
 
+    }
+
+    private class WaitForWebserverTask extends TimerTask {
+        private InsectWarsRequest request;
+        private ArrayList<String> pending;
+
+        public WaitForWebserverTask(InsectWarsRequest request, ArrayList<String> pend) {
+            this.request = request;
+            this.pending = pend;
+        }
+
+        @Override
+        public void run() {
+            boolean canRun = false;
+            
+            for (String i: pending){
+                if (state.isRunning(i)) { 
+                    canRun = true;
+                    break;
+                }
+            }
+
+            if(canRun) { 
+                System.out.println("[LB]: Waiting request now sent...");
+                sendRequest(request); 
+            } 
+            else {
+                System.out.println("[LB]: Waiting request still waiting...");
+                WaitForWebserverTask task = new WaitForWebserverTask(this.request, this.pending);
+                timer.schedule(task, 5000);
+            }
+        }
+    }
+
+    private String chooseProcessor(Request request){
+        double lastKnownAvg = this.state.getCPUAvg();
+        if(lastKnownAvg > 80 ) {
+            if (this.state. getPendingNr() > 0 && request.getCost() < 5000000){
+                //high cpu but small request -> lambda
+                return "Lambda";
+            } else if (this.state. getPendingNr() > 0 && request.getCost() > 10000000){
+                //high cpu but big request -> wait
+                return "Wait";
+            } else {
+                //high cpu average request -> assign to worker
+                return "Worker";
+            }
+        }
+        //normal case -> assign to worker
+        return "Worker";
     }
 
     public Double calculateCost(long round, long army1, long army2) {

@@ -14,6 +14,7 @@ public class InstanceState {
     private long executingInstructions;
     private ConcurrentHashMap<String, Request> requests;
     private LocalDateTime startingTime;
+    private boolean pending = true;
 
 
     public InstanceState(String id, String url) {
@@ -46,6 +47,14 @@ public class InstanceState {
         }
 
         return result;
+    }
+
+    public boolean isRunning(){
+        return this.pending == false;
+    }
+
+    public void setRunning(){
+        this.pending = false;
     }
 
     public boolean hasRequests() {
